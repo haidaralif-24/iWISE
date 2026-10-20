@@ -63,6 +63,7 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
 
     if let Some(win) = app.get_webview_window("chat") {
         win.navigate(parsed).map_err(|err| err.to_string())?;
+        win.set_always_on_top(true).map_err(|err| err.to_string())?;
         win.show().map_err(|err| err.to_string())?;
         win.set_focus().map_err(|err| err.to_string())?;
         return Ok(());
@@ -72,6 +73,7 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .title("Pip — chat")
         .inner_size(1080.0, 820.0)
         .min_inner_size(720.0, 560.0)
+        .always_on_top(true)
         .build()
         .map_err(|err| err.to_string())?;
 
