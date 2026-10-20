@@ -3,15 +3,28 @@
 Goal: decide how the AI chat reaches our local tools.
 
 ## Checklist
-- [ ] Tauri window opens, always-on-top works on my OS
+
+State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or only partly done.
+
+- [x] Tauri window opens, always-on-top works on my OS — macOS, both the Pip window and the chat window
 - [ ] Can I log in to the chat site inside the Tauri webview? (try email login if Google blocks it)
+  - Google sign-in: **blocked by Google policy**, not a bug — see findings below
+  - Email + password: **not tried yet** ← next action, 2 minutes
 - [ ] MarkItDown tested on: textbook PDF / PPTX / DOCX / scanned PDF
+  - PDF — done (3 files: 2-page image-heavy, 6-page worksheet, 2-page essay)
+  - DOCX — done
+  - PPTX — **not tested**, no sample yet
+  - scanned PDF — **not tested**, all three PDFs have real text layers
 - [ ] Minimal MCP server (one `ping` tool) over Streamable HTTP
 - [ ] Tunnel exposes it over HTTPS
 - [ ] Added as custom connector on a FREE Claude account, and the chat can call `ping`
 - [ ] Same test on Le Chat (Mistral) free
 
 ## Decision
+
+Nothing to decide yet — the decision depends on the last four items above. Do not tick one of these
+until `ping` is reachable from a free account.
+
 - [ ] Option A (tunnel + MCP)
 - [ ] Option B (script injection)
 - [ ] Tier 1 + Tier 2 only
