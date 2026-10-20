@@ -8,6 +8,11 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 /// so one string covers all three platforms.
 const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Shift+Space";
 
+/// Fixed chat window size. Height matches the Pip window so the two sit
+/// side by side as one unit. Change both numbers here only.
+const CHAT_WIDTH: f64 = 820.0;
+const CHAT_HEIGHT: f64 = 680.0;
+
 #[derive(Clone, Serialize)]
 pub struct HotkeyStatus {
     hotkey: String,
@@ -71,8 +76,9 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
 
     WebviewWindowBuilder::new(&app, "chat", WebviewUrl::External(parsed))
         .title("Pip — chat")
-        .inner_size(1080.0, 820.0)
-        .min_inner_size(720.0, 560.0)
+        .inner_size(CHAT_WIDTH, CHAT_HEIGHT)
+        .resizable(false)
+        .maximizable(false)
         .always_on_top(true)
         .build()
         .map_err(|err| err.to_string())?;
