@@ -31,3 +31,17 @@ Goal: decide how the AI chat reaches our local tools.
 - Gotcha hit: `npm run tauri dev` fails with `Port 1420 is already in use` if a vite dev
   server is still alive from a previous run. Kill it, then retry.
 - Wayland is untested and expected to fail (compositors do not expose global hotkeys to clients).
+
+### 2026-10-21 — chat login test (macOS)
+
+- **Google sign-in fails inside the Tauri webview.** Expected, not a bug: Google's OAuth policy
+  rejects embedded user agents ("This browser or app may not be secure"), and it has been that way
+  for years. It will not be fixed by retrying or by a Tauri upgrade.
+- Options, in order of cost:
+  1. **Email + password login** on the chat site. Works in a webview. Zero code.
+  2. **Use a provider that allows it** — Le Chat (Mistral) or ChatGPT, neither of which gates on
+     Google's embedded-browser rule.
+  3. **System-browser OAuth** — open the login in the user's real browser, then hand the session
+     back. Real work (custom protocol handler + cookie/token transfer), not a day-1 item.
+- Do **not** spoof the user agent to get around it. It breaks Google's terms and fails unpredictably.
+- Always-on-top confirmed working on macOS for both the Pip window and the chat window.

@@ -8,8 +8,8 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 /// so one string covers all three platforms.
 const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Shift+Space";
 
-/// Fixed chat window size. Height matches the Pip window so the two sit
-/// side by side as one unit. Change both numbers here only.
+/// Default chat window size. Height matches the Pip window so the two sit side
+/// by side as one unit. The window is resizable; these are only the opening size.
 const CHAT_WIDTH: f64 = 820.0;
 const CHAT_HEIGHT: f64 = 680.0;
 
@@ -64,7 +64,12 @@ fn dock_chat(main: &WebviewWindow, chat: &WebviewWindow) -> tauri::Result<()> {
 
     let pos = main.outer_position()?;
     let size = main.outer_size()?;
-    let width = CHAT_WIDTH as i32;
+    // The chat window is resizable, so clamp against its current width rather
+    // than the default constant — otherwise a widened window overflows the screen.
+    let width = chat
+        .outer_size()
+        .map(|s| s.width as i32)
+        .unwrap_or(CHAT_WIDTH as i32);
 
     let mut x = pos.x + size.width as i32 + GAP;
 
@@ -108,8 +113,8 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let chat = WebviewWindowBuilder::new(&app, "chat", WebviewUrl::External(parsed))
         .title("Pip — chat")
         .inner_size(CHAT_WIDTH, CHAT_HEIGHT)
-        .resizable(false)
-        .maximizable(false)
+        .min_inner_size(420.0, 480.0)
+        .resizable(true)
         .always_on_top(true)
         .build()
         .map_err(|err| err.to_string())?;
