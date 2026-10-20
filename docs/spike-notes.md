@@ -45,3 +45,37 @@ Goal: decide how the AI chat reaches our local tools.
      back. Real work (custom protocol handler + cookie/token transfer), not a day-1 item.
 - Do **not** spoof the user agent to get around it. It breaks Google's terms and fails unpredictably.
 - Always-on-top confirmed working on macOS for both the Pip window and the chat window.
+
+### 2026-10-21 — MarkItDown on four real files (markitdown 0.1.8, Python 3.13.12)
+
+Samples are in `tests/samples/`. Command: `convert.py <file> > out.md`.
+
+| File | Pages | Size | MD chars | ~tokens (chars/4) | Time |
+|---|---|---|---|---|---|
+| `Activity_1.docx` | — | 17 KB | 2,316 | 579 | 1.8 s |
+| `Activity_1.pdf` | 2 | 501 KB | 2,923 | 730 | **22.2 s** |
+| `Assignment_1…Buoyancy….pdf` | 6 | 206 KB | 8,025 | 2,006 | 2.3 s |
+| `Essay_Kartun_Sensus_Penduduk.pdf` | 2 | 6.4 KB | 6,298 | 1,574 | 1.9 s |
+
+All four exited 0. Text fidelity is good — prose comes out clean and readable.
+
+**Problems found, in order of how much they hurt:**
+
+1. **`Activity_1.pdf` takes 22 seconds for 2 pages.** It is image-heavy (501 KB, only 2,317 chars of text layer). Conversion time is not proportional to page count or text volume, so the UI cannot predict it. Needs a progress state and a cancel path, not a spinner that might be a hang.
+2. **PDF tables come out broken.** In `Activity_1.pdf` the header row splits across lines (`Al 8000-series alloy (Al + about` / `0.4–1% Fe)`) and cells land in the wrong columns. This is a PDF table-extraction limit, not a bug we can fix by upgrading. It makes the Tier 2 **preview and edit** step load-bearing rather than optional — the user has to be able to repair the Markdown before sending it.
+3. **Justified text produces double spaces.** The essay has 325 runs of 2+ spaces, an artefact of justification. Pure token waste. A whitespace-normalisation pass in `convert.py` is a cheap win — probably 3–5% of tokens on prose documents.
+4. **DOCX headings are lost.** `Activity_1.docx` uses only the `ListParagraph` style with manual bold; it has no `Heading 1..5` applied, even though those styles exist in the file. mammoth is correct to emit `**bold**`. GIGO — the converter can only preserve structure the document actually has. Worth saying in the pitch: structure in, structure out.
+5. **Maths breaks.** Subscripts in the physics worksheet split onto their own lines (`Fᵦ = ρ V g (ρ.g.V)` / `fluid. displaced.`). Expect to hand-fix formulas.
+
+**Still missing from the checklist: a genuinely scanned PDF.** All three PDFs here have real text layers (2,317 / 7,008 / 6,029 chars). The scanned case — where MarkItDown returns nothing and OCR would be required — remains untested. Get one before the final; §12 already promises to state that limit honestly.
+
+**Dependency footprint (matters for day 4 packaging):**
+
+| Install | Packages | Size |
+|---|---|---|
+| `markitdown[all]` | 53 | 366 MB |
+| `markitdown[pdf,docx,pptx,xlsx]` | 37 | 310 MB |
+
+Dropping `[all]` saves only 56 MB, because `magika` (file-type detection) is a **core** dependency and pulls `onnxruntime` (80 MB), and the `xlsx` extra pulls `pandas` (70 MB). A PyInstaller sidecar will therefore be large no matter what. Decide on day 4 between: bundle it and accept ~300 MB, or ship `pip install markitdown` and say so honestly (the concept already allows this).
+
+`requirements.txt` now pins `markitdown[pdf,docx,pptx,xlsx]` instead of `[all]` — audio transcription, YouTube, Outlook and the Azure readers are not in scope. Verified: the narrowed set produces **byte-identical** output on all four samples. Env is built with `uv` (see below), CPython 3.14.3, 241 MB on disk.
