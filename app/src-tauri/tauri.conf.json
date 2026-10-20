@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "app",
+  "productName": "Pip",
   "version": "0.1.0",
   "identifier": "com.haidaralifawwaz.app",
   "build": {
@@ -12,9 +12,17 @@
   "app": {
     "windows": [
       {
-        "title": "app",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Pip",
+        "width": 420,
+        "height": 680,
+        "minWidth": 360,
+        "minHeight": 480,
+        "resizable": true,
+        "center": true,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "visible": true
       }
     ],
     "security": {
