@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 /// Day-1 default. `CmdOrCtrl` maps to Cmd on macOS and Ctrl on Windows/Linux,
@@ -56,6 +56,31 @@ fn hotkey_status(state: tauri::State<'_, Mutex<HotkeyStatus>>) -> HotkeyStatus {
     }
 }
 
+/// Places the chat window beside Pip: to its right when the screen has room,
+/// otherwise flipped to the left, then clamped inside the monitor. All values
+/// are physical pixels, so this holds on any display scale factor.
+fn dock_chat(main: &WebviewWindow, chat: &WebviewWindow) -> tauri::Result<()> {
+    const GAP: i32 = 8;
+
+    let pos = main.outer_position()?;
+    let size = main.outer_size()?;
+    let width = CHAT_WIDTH as i32;
+
+    let mut x = pos.x + size.width as i32 + GAP;
+
+    if let Some(monitor) = main.current_monitor()? {
+        let left = monitor.position().x;
+        let right = left + monitor.size().width as i32;
+
+        if x + width > right {
+            x = pos.x - width - GAP;
+        }
+        x = x.max(left);
+    }
+
+    chat.set_position(PhysicalPosition::new(x, pos.y))
+}
+
 /// Opens (or re-uses) the separate chat window. The window is created at
 /// runtime on purpose: the capability allowlist targets `main` only, so this
 /// window — which hosts a third-party page — has no access to any Tauri command.
@@ -66,15 +91,21 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
         return Err("only http(s) URLs are allowed".into());
     }
 
+    let main = app
+        .get_webview_window("main")
+        .ok_or("main window is not available")?;
+
     if let Some(win) = app.get_webview_window("chat") {
         win.navigate(parsed).map_err(|err| err.to_string())?;
         win.set_always_on_top(true).map_err(|err| err.to_string())?;
+        // Best effort: a failed re-dock must not stop the window opening.
+        let _ = dock_chat(&main, &win);
         win.show().map_err(|err| err.to_string())?;
         win.set_focus().map_err(|err| err.to_string())?;
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(&app, "chat", WebviewUrl::External(parsed))
+    let chat = WebviewWindowBuilder::new(&app, "chat", WebviewUrl::External(parsed))
         .title("Pip — chat")
         .inner_size(CHAT_WIDTH, CHAT_HEIGHT)
         .resizable(false)
@@ -82,6 +113,8 @@ fn open_chat(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .always_on_top(true)
         .build()
         .map_err(|err| err.to_string())?;
+
+    let _ = dock_chat(&main, &chat);
 
     Ok(())
 }
