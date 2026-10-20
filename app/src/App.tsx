@@ -85,8 +85,8 @@ function App() {
         <section className="card">
           <h2>Chat window</h2>
           <p className="muted">
-            Opens the site in a separate window with no Tauri permissions. Log in there once; the
-            session is reused.
+            Opens the site in a separate window with no Tauri permissions. Sign in with{" "}
+            <strong>email and password</strong> — Google blocks sign-in inside embedded windows.
           </p>
           <div className="sites">
             {CHAT_SITES.map((site) => (

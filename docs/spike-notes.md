@@ -7,9 +7,12 @@ Goal: decide how the AI chat reaches our local tools.
 State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or only partly done.
 
 - [x] Tauri window opens, always-on-top works on my OS — macOS, both the Pip window and the chat window
-- [ ] Can I log in to the chat site inside the Tauri webview? (try email login if Google blocks it)
-  - Google sign-in: **blocked by Google policy**, not a bug — see findings below
-  - Email + password: **not tried yet** ← next action, 2 minutes
+- [x] Can I log in to the chat site inside the Tauri webview? (try email login if Google blocks it)
+  - **Yes, with email + password.** That is the supported path.
+  - Google sign-in is blocked by Google policy inside embedded windows — not a bug, not fixable
+    by retrying or upgrading. See findings below.
+  - Product consequence: the app must tell users to use email, because the failure is silent and
+    looks like a broken app.
 - [ ] MarkItDown tested on: textbook PDF / PPTX / DOCX / scanned PDF
   - PDF — done (3 files: 2-page image-heavy, 6-page worksheet, 2-page essay)
   - DOCX — done
@@ -51,7 +54,7 @@ until `ping` is reachable from a free account.
   rejects embedded user agents ("This browser or app may not be secure"), and it has been that way
   for years. It will not be fixed by retrying or by a Tauri upgrade.
 - Options, in order of cost:
-  1. **Email + password login** on the chat site. Works in a webview. Zero code.
+  1. **Email + password login** on the chat site. Works in a webview. Zero code. **← chosen**
   2. **Use a provider that allows it** — Le Chat (Mistral) or ChatGPT, neither of which gates on
      Google's embedded-browser rule.
   3. **System-browser OAuth** — open the login in the user's real browser, then hand the session
