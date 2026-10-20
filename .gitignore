@@ -1,0 +1,16 @@
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+*.log
+.env
+.DS_Store
+
+# sidecar build outputs
+sidecars/**/build/
+sidecars/**/*.spec
+
+# never commit audit logs or tokens
+audit.log
+*.token
