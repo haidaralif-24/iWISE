@@ -21,8 +21,12 @@ State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or on
 - [x] Minimal MCP server over Streamable HTTP — `POST /mcp` on 127.0.0.1:8787, one tool
       `reveal_secret`. Verified with curl: `initialize`, `tools/list`, `tools/call` all answer, and
       a wrong bearer token gets 401. `GET /health` returns `ok` for tunnel checks.
-- [ ] Tunnel exposes it over HTTPS
-- [ ] Added as custom connector on a FREE Claude account, and the chat can call the tool
+- [x] Tunnel exposes it over HTTPS — ngrok, `https://unbounded-passive-ahoy.ngrok-free.dev`.
+      `/health` answers through the tunnel, and an unauthenticated `POST /mcp` is refused with 401
+      from the internet, so the endpoint is both reachable and closed.
+- [x] Added as custom connector on a **FREE** Claude account, and the chat can call the tool —
+      Claude called `reveal_secret` through the tunnel and got the phrase back. The whole chain
+      works: cloud client → tunnel → local MCP server → tool.
 - [ ] Same test on Le Chat (Mistral) free
 
 ## Decision
@@ -137,3 +141,31 @@ endpoints have no idle timeout. The browser interstitial does not apply to API c
 request ever gets it, send `ngrok-skip-browser-warning` with any value.
 
 One-time setup: `ngrok config add-authtoken <token>`.
+
+### 2026-10-21 — tunnel + connector verified (the spike is decided)
+
+The full chain works on a **free** Claude account:
+
+```
+Claude (cloud) --HTTPS--> ngrok --> 127.0.0.1:8787 (MCP server) --> reveal_secret
+```
+
+- Claude called `reveal_secret` and returned "The eagle lands at midnight."
+- `/health` through the tunnel returns `ok`; an unauthenticated `POST /mcp` from the internet
+  returns 401, so the endpoint is reachable but closed.
+- Tunnel URL: `https://unbounded-passive-ahoy.ngrok-free.dev` — the account's stable dev domain.
+- Connector URL is the tunnel host plus `/mcp?token=<PIP_MCP_TOKEN>`. The query-parameter form is
+  what was used; no custom header was needed.
+
+**Gotcha:** ngrok exits with `ERR_NGROK_9009` when `HTTP_PROXY`/`HTTPS_PROXY` are set in the
+environment — the free plan does not allow an agent behind a proxy. Launch it with the proxy
+variables stripped:
+
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy ngrok http 8787
+```
+
+**Consequence for the project:** Tier 3 is viable. Option A (tunnel + MCP) was the whole risk, and
+it is now proven end to end rather than assumed. The remaining Tier 3 work is the real tool set
+(`list_files`, `read_document_as_markdown`, …) behind the permission and audit layer, not the
+transport.
