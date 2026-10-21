@@ -61,17 +61,33 @@ function loadState(durations: Durations): Saved {
   }
 }
 
-async function notify(finished: Phase, next: Phase) {
+/**
+ * Fires the desktop notification.
+ *
+ * Returns the reason it could not, if it could not. A notification that
+ * silently does nothing is the worst outcome: the user waits for a timer that
+ * looks finished and no alarm arrives. So the caller shows the reason.
+ */
+async function notify(finished: Phase, next: Phase): Promise<string | null> {
   try {
     let granted = await isPermissionGranted();
-    if (!granted) granted = (await requestPermission()) === "granted";
-    if (!granted) return;
+    if (!granted) {
+      const asked = await requestPermission();
+      granted = asked === "granted";
+      if (!granted) {
+        return asked === "denied"
+          ? "Notifications are blocked for Pip, so the timer will only sound in the window."
+          : "Notification permission was not granted, so the timer will only sound in the window.";
+      }
+    }
+
     sendNotification({
       title: finished === "focus" ? "Focus session done" : "Break over",
       body: finished === "focus" ? `Time for a ${LABEL[next].toLowerCase()}.` : "Back to focus.",
     });
-  } catch {
-    // Best effort; the in-app state is the source of truth.
+    return null;
+  } catch (error) {
+    return `The notification could not be shown (${String(error)}). The timer still works in the window.`;
   }
 }
 
@@ -95,6 +111,9 @@ function Pomodoro() {
   const [secondsLeft, setSecondsLeft] = useState(initial.secondsLeft);
   const [done, setDone] = useState(initial.done);
   const [running, setRunning] = useState(false);
+  // Why the desktop notification did not happen, if it did not. The timer
+  // keeps working either way, so this is a warning, not an error.
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!running) return;
@@ -113,7 +132,9 @@ function Pomodoro() {
     setDone(nextDone);
     setPhase(next);
     setSecondsLeft(durations[next] * 60);
-    void notify(phase, next);
+    void notify(phase, next).then((problem) => {
+      if (problem) setNotice(problem);
+    });
   }, [secondsLeft, running, phase, done, durations]);
 
   useEffect(() => {
@@ -202,6 +223,15 @@ function Pomodoro() {
           defaults
         </button>
       </div>
+
+      {notice && (
+        <p className="warn">
+          {notice}
+          <button className="link" onClick={() => setNotice(null)}>
+            dismiss
+          </button>
+        </p>
+      )}
     </section>
   );
 }

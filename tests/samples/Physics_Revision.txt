@@ -1,0 +1,15 @@
+BUOYANCY - QUICK REVISION NOTES
+
+Archimedes' principle: the upward force on a submerged object is equal
+to the weight of the fluid it displaces.
+
+KEY IDEAS
+1. Buoyant force = weight of displaced fluid
+2. An object floats when its density is less than the fluid's
+3. Pressure at depth: p = p0 + rho g h
+
+WORKED EXAMPLE
+A 1000 cm3 block of wood (density 600 kg/m3) is held underwater.
+Fb = 1000 x 9.81 x 0.001 = 9.81 N
+W  =  600 x 9.81 x 0.001 = 5.89 N
+Net upward force = 3.92 N

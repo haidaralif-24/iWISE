@@ -338,12 +338,13 @@ set is `allow-message`, `allow-save`, `allow-open` and nothing else, so every na
 dialog would have failed at runtime with a permission error that looks like nothing happening.
 
 **One test script, one command.** `./test.sh` runs everything: the Rust tests, the frontend
-type-check and production build, the bridge tests, the MCP type-check and the 27-assertion tool
-suite. The MCP tests start **their own server on their own port (8788) with their own state
-folder**, so they never collide with a server you are already running and never write into your
-real notes or audit log. The first version of this did collide — the tests were talking to the
-already-running server, which had a different token, and every assertion failed. A test suite that
-shares state with production is a test suite that only works if nothing else is running.
+type-check and production build, the bridge tests, the converter tests, the UI audit, the MCP
+type-check and the 27-assertion tool suite. The MCP tests start **their own server on their own
+port (8788) with their own state folder**, so they never collide with a server you are already
+running and never write into your real notes or audit log. The first version of this did collide —
+the tests were talking to the already-running server, which had a different token, and every
+assertion failed. A test suite that shares state with production is a test suite that only works if
+nothing else is running.
 
 ### Still open
 
@@ -359,3 +360,107 @@ shares state with production is a test suite that only works if nothing else is 
 - **The screen cannot be captured on this machine**, so the UI was verified by building it, type-
   checking it and driving the code paths underneath it — never by looking at it. The layout and
   styling have not been seen by anyone.
+
+---
+
+## The second pass: closing the open list
+
+Everything above was true when it was written. Some of it stopped being true.
+
+### The formats that were never tested
+
+`RAW_EXTRACTORS` covered `.pdf`, `.docx`, `.pptx` and `.xlsx` and nothing else. So for a CSV, an
+HTML page, a text file or a Markdown file, the converter returned an **empty `rawText`** — and
+the window's "paste by hand" figure showed **0 tokens**. The readout was quietly wrong for four
+of the formats it claimed to handle.
+
+Worse: `tests/samples/` held one DOCX and three PDFs. There was no sample of any of those formats,
+so there was no way to find out. Both are fixed — extractors for CSV/TSV/HTML/TXT/MD/JSON/XML,
+and `tests/samples/make-samples.py` writes a sample of each.
+
+The samples are generated with `python-pptx`, `openpyxl` and `Pillow`, which are already in the
+venv. Nothing is copied from anyone's work.
+
+**A scan is a case worth having a file for.** `Scanned_Worksheet.pdf` is a picture of a worksheet
+with no text layer. MarkItDown has no OCR, so it returns nothing — and now says so, in the JSON
+envelope (`noTextLayer`) and in the window, rather than showing an empty preview and letting the
+user think the file is broken. The limit is now *demonstrated* rather than assumed.
+
+### Seeing the interface
+
+The note above says the UI has never been looked at. That was true because `screencapture` is
+refused on this machine. It is no longer a reason.
+
+Chrome turned out to be installed in an unusual place (`~/Documents/random/Google Chrome.app`), and
+Playwright's browser download is blocked by the proxy — but **Chrome's own DevTools Protocol
+works, and Node 26 has a built-in WebSocket client**, so no driver needs to be installed at all.
+
+`app/ui-audit.mjs` drives Chrome over CDP: it sets the device metrics to the app's real window
+size (420×680), navigates to the harness, waits for the app to settle, measures the layout and
+takes a screenshot. Ten scenarios, one per tab and per state.
+
+The harness (`app/dev-harness.html` and `app/src/dev/`) renders the **real** app against a mock
+of the Tauri IPC, built on Tauri's own `mockIPC`/`mockWindows` helpers. Two things about that
+were not obvious:
+
+- **Event mocking is opt-in.** Without `mockIPC(cb, { shouldMockEvents: true })` the event plugin
+  is passed straight through to the handler, no listener is ever registered, and a drag-and-drop
+  goes nowhere. The first version of the harness looked correct and simply did nothing.
+- **Chrome will not make a window narrower than 500px** on macOS, so `--window-size` cannot
+  produce the real 420px width. `Emulation.setDeviceMetricsOverride` can.
+
+Three real defects came out of it:
+
+- A note preview was **clipped** — one long line with an ellipsis, which the audit at first
+  reported as a bug until it was checked against the CSS. (It was deliberate. The audit now knows
+  about `text-overflow: ellipsis`.)
+- The merge checkbox was **13px tall**. It is now 16px.
+- **The approval poll did not run until 1.2 seconds after launch**, because the effect only set
+  up an interval and never checked once. An approval that arrived while the app was closed could
+  wait a second before the user was told about it. It now checks immediately.
+
+The approval flow itself ends in a **native dialog**, which cannot be pictured headlessly. The
+harness checks the calls instead, and the record is the proof:
+
+```
+native dialog:    [{"message":"writing a new note\n\n{…}","title":"Pip wants to run create_note","answer":"Ok"}]
+approval answer:  [{"id":"harness-1","approved":true}]
+```
+
+The poll, the dialog with the tool name and the arguments, and the answer with the right id.
+
+### The bridge was looking in the wrong place
+
+The old bridge took the **first** textarea it found. On a real chat page that is usually the
+search box. It now scores the candidates — preferring a large, visible box whose placeholder or
+label mentions messages, penalising anything that looks like a search field, ignoring hidden and
+disabled ones — and picks the best. The tests went from 9 assertions to 13 and cover exactly
+those cases.
+
+This is still the piece that cannot be proven here: it has never run against a real logged-in
+Claude or Le Chat page. What it has is a set of tests and a scoring rule that survives a markup
+change better than a hard-coded selector.
+
+### The token claim, again
+
+The abstract said the messy formatting "wastes tokens" and promised "a token count before and
+after conversion". Both are wrong, and the correction had already been written into §8 of the
+concept document without reaching the abstract.
+
+The measurement, on the four real samples: **the Markdown is 2–15% *larger* than the raw text**,
+because the syntax costs more characters than the whitespace it removes. The saving is real but it
+comes from **choosing pages** (2,067 → 680 tokens, 67%) and from **editing**. The abstract now
+gives three figures — what pasting by hand would cost, what the clean Markdown costs, and what
+the prompt will actually cost — and the window says the saving only when there is one.
+
+### What is still open after all this
+
+- **The screen still cannot be captured**, so the screenshots have not been looked at by a human.
+  They are real renders at the real size, and the layout is measured rather than eyeballed, but
+  "measured" is not "seen". Somebody should open `docs/screenshots/`.
+- **The chat login is still blocked** on the user's credentials, so no real AI has ever driven
+  Pip end to end.
+- **The pilot has not been run.** `docs/pilot-survey.md` is still a blank template.
+- **ngrok has no authtoken**, so the stable-hostname path is still unexercised.
+- **MarkItDown is still not packaged** as a PyInstaller sidecar; the app needs the `uv` venv.
+

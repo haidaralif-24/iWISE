@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pip — visual harness</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!--
+      Development only. This page renders the real app against a mock of the
+      Tauri IPC, so the UI can be screenshotted and driven in a plain browser.
+      Vite serves it in dev mode; it is not part of the production build.
+
+      Query parameters:
+        ?tab=chat|timer|docs|notes|apps|log   open on that tab
+        ?drop=/path/to/file                    simulate dropping that file
+        ?dialog=Ok|Cancel                      answer for the next native dialog
+        ?approval=1                            show a pending tool approval
+        ?audit=1                               expose the layout audit
+    -->
+    <script type="module">
+      import { installMock } from "/src/dev/mock-tauri.ts";
+
+      const params = new URLSearchParams(location.search);
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      // Any failure is written into the page, so it can be read back.
+      const diag = (message) => {
+        let box = document.getElementById("diag");
+        if (!box) {
+          box = document.createElement("pre");
+          box.id = "diag";
+          document.body.appendChild(box);
+        }
+        box.textContent += message + "\n";
+      };
+      window.addEventListener("error", (event) => diag("ERROR: " + event.message));
+      window.addEventListener("unhandledrejection", (event) =>
+        diag("REJECTION: " + (event.reason?.stack ?? event.reason)),
+      );
+
+      try {
+        installMock();
+      } catch (error) {
+        diag("mock failed: " + (error?.stack ?? error));
+      }
+
+      if (params.get("dialog")) {
+        window.__pipMock.answerDialog(params.get("dialog"));
+      }
+
+      if (params.get("approval") === "1") {
+        window.__pipMock.queueApproval({
+          id: "harness-1",
+          tool: "create_note",
+          arguments: { title: "buoyancy-summary", text: "… 142 characters …" },
+          reason: "writing a new note",
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      try {
+        await import("/src/main.tsx");
+      } catch (error) {
+        diag("main failed: " + (error?.stack ?? error));
+      }
+      await wait(400);
+
+      const tab = params.get("tab");
+      if (tab) {
+        try {
+          window.__pipMock.selectTab(tab);
+        } catch (error) {
+          diag("selectTab: " + (error?.message ?? error));
+        }
+        await wait(400);
+      }
+
+      const drop = params.get("drop");
+      if (drop) {
+        // A comma separates several files, so the merge path can be exercised.
+        await window.__pipMock.dropFiles(drop.split(",").map((path) => path.trim()));
+        await wait(600);
+      }
+
+      if (params.get("audit") === "1") {
+        try {
+          const { report } = await import("/src/dev/audit.ts");
+          // The driver calls this when it is ready to measure.
+          window.__pipAudit = report;
+        } catch (error) {
+          diag("audit failed: " + (error?.stack ?? error));
+        }
+      }
+
+      // The driver waits for this before it measures or screenshots.
+      window.__pipReady = true;
+    </script>
+  </body>
+</html>

@@ -44,6 +44,19 @@ else
   fail "bridge tests"
 fi
 
+# ---------------------------------------------------------------- the converter
+section "Converter — every format Pip claims to handle"
+CONVERTER_PY="sidecars/markitdown/.venv/bin/python"
+if [ -x "$CONVERTER_PY" ]; then
+  if "$CONVERTER_PY" sidecars/markitdown/test-convert.py; then
+    :
+  else
+    fail "converter tests"
+  fi
+else
+  fail "converter tests — $CONVERTER_PY is missing (run setup.sh)"
+fi
+
 # ----------------------------------------------------------------- mcp server
 section "MCP server — type check"
 if (cd mcp-server && npx tsc --noEmit); then
@@ -97,6 +110,17 @@ rm -rf "$TEST_STATE"
 
 # Put the environment back for anything that runs after this script.
 unset PIP_MCP_PORT PIP_MCP_TOKEN PIP_STATE_DIR PIP_NOTES_DIR PIP_MCP_BASE
+
+# ------------------------------------------------------------------- the ui
+# The interface is rendered for real in headless Chrome and measured: text
+# clipped by its box, content outside the window, controls too small to hit.
+# It needs a Chrome binary, so it is skipped when there is none.
+section "UI — the interface rendered and measured"
+if node app/ui-audit.mjs --out "$PWD/docs/screenshots" 2>&1 | tail -14; then
+  :
+else
+  fail "ui audit"
+fi
 
 # ----------------------------------------------------------------- result
 printf '\n'

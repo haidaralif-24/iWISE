@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pip — iWISE Regional Final</title>
+    <style>
+  :root {
+    --bg: #0d0d10;
+    --panel: #16161b;
+    --ink: #ececf1;
+    --muted: #9a9aa6;
+    --accent: #6f8bff;
+    --bad: #ff7a7a;
+    --ok: #6ee7a8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { display: flex; flex-direction: column; }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 20px;
+    border-bottom: 1px solid #23232b;
+    font-size: 12.5px;
+    color: var(--muted);
+    flex: 0 0 auto;
+  }
+  header strong { color: var(--ink); font-weight: 600; }
+  header .spacer { flex: 1; }
+  header button {
+    background: #1e1e25;
+    color: var(--ink);
+    border: 1px solid #2d2d37;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font: inherit;
+    cursor: pointer;
+  }
+  header button:hover { background: #26262f; }
+  #stage { flex: 1 1 auto; overflow: hidden; position: relative; }
+  .slide {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 44px 64px;
+  }
+  .slide.active { display: block; }
+  .slide h1 { font-size: 46px; line-height: 1.15; margin: 0 0 22px; letter-spacing: -0.02em; }
+  .slide h2 { font-size: 34px; line-height: 1.2; margin: 0 0 20px; letter-spacing: -0.015em; }
+  .slide h3 { font-size: 22px; margin: 26px 0 10px; color: var(--accent); }
+  .slide p { font-size: 19px; line-height: 1.55; margin: 0 0 14px; max-width: 60ch; }
+  .slide ul, .slide ol { font-size: 19px; line-height: 1.55; margin: 0 0 14px; padding-left: 26px; max-width: 64ch; }
+  .slide li { margin-bottom: 9px; }
+  .slide li strong { color: var(--accent); }
+  .slide blockquote {
+    margin: 18px 0;
+    padding: 14px 18px;
+    border-left: 3px solid var(--accent);
+    background: var(--panel);
+    border-radius: 0 8px 8px 0;
+    font-size: 18px;
+    color: #d8d8e2;
+  }
+  .slide code {
+    background: #22222b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+  }
+  .slide hr { border: 0; border-top: 1px solid #2a2a33; margin: 22px 0; }
+  .slide .lead { font-size: 24px; color: #d5d5de; }
+  .slide .muted { color: var(--muted); }
+  .slide .bad { color: var(--bad); }
+  .slide .ok { color: var(--ok); }
+  .slide table { border-collapse: collapse; font-size: 17px; margin: 14px 0; }
+  .slide th, .slide td { border: 1px solid #2c2c35; padding: 8px 14px; text-align: left; }
+  .slide th { background: var(--panel); }
+  #notes {
+    display: none;
+    flex: 0 0 auto;
+    max-height: 32vh;
+    overflow-y: auto;
+    border-top: 1px solid #23232b;
+    padding: 14px 64px;
+    background: #111116;
+    color: #b9b9c5;
+    font-size: 14.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  #notes.open { display: block; }
+  #notes strong { color: var(--accent); }
+  #help {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 8, 11, 0.94);
+    color: var(--ink);
+    padding: 60px;
+    font-size: 17px;
+    line-height: 2;
+  }
+  #help.open { display: block; }
+  #help kbd {
+    background: #22222b;
+    border: 1px solid #33333d;
+    border-radius: 5px;
+    padding: 2px 9px;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 15px;
+  }
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    header, #notes, #help { display: none !important; }
+    #stage { overflow: visible; }
+    .slide {
+      display: block !important;
+      height: 720px;
+      page-break-after: always;
+      overflow: hidden;
+    }
+    body { background: #fff; }
+  }
+</style>
+  </head>
+  <body>
+    <header>
+      <strong>Pip</strong>
+      <span>a lightweight AI assistant window</span>
+      <span class="spacer"></span>
+      <button id="toggle-notes" type="button">notes</button>
+      <button id="toggle-help" type="button">shortcuts</button>
+      <span id="counter"></span>
+    </header>
+
+    <main id="stage">
+      <section class="slide" data-notes="" aria-label="Slide 1">
+<h1>Pip — iWISE Regional Final</h1>
+<p>&lt;!--</p>
+<p>The deck. Written in Markdown so it can be edited in any editor and diffed</p>
+<p>in a pull request.</p>
+<p>Render it:</p>
+<p>node tools/slides-to-html.mjs</p>
+<p>then open docs/slides.html and press the arrow keys.</p>
+<p>Rules for this file, learned the hard way:</p>
+<ul>
+<li>Every number in here has to be a number we measured. If it is a guess,</li>
+</ul>
+<p>say it is a guess.</p>
+<ul>
+<li>The token slide says three numbers, never one. The single number is the</li>
+</ul>
+<p>claim we disproved.</p>
+<ul>
+<li>There is a slide about what does not work. Keep it. It is the reason the</li>
+</ul>
+<p>rest of the deck is believable.</p>
+<p>--&gt;</p>
+      </section>
+      <section class="slide" data-notes="Open with the hotkey. Do not explain the stack yet.&#10;&#10;Say: &quot;Everyone here pastes documents into an AI chat by hand. Pip is the same&#10;chat, with a way to prepare what you paste — and a way to let the AI read a&#10;few files you approve.&quot;&#10;&#10;Five minutes. Four slides are about safety, because that is the part that&#10;is actually hard." aria-label="Slide 2">
+<h1>Pip</h1>
+<h3>A small always-on-top window that gives the AI you already use</h3>
+<h3>a safe way to see your documents</h3>
+      </section>
+      <section class="slide" data-notes="Do not say &quot;and it wastes your tokens&quot;. We measured that and it is not true.&#10;&#10;The honest problem is time and attention, not tokens. The token claim is a&#10;separate slide and it is more interesting." aria-label="Slide 3">
+<h2>The problem</h2>
+<ul>
+<li>You copy text out of PDFs, Word files and slides <strong>by hand</strong></li>
+<li>The formatting comes out wrong — tables break, headings vanish</li>
+<li>The AI cannot see your files, so every question needs the context again</li>
+<li>Real AI agents need a paid API key or a local model</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="&quot;No account&quot; is worth saying: it reuses whatever free tier or subscription&#10;the student already has. That is the part that makes it reachable." aria-label="Slide 4">
+<h2>The idea</h2>
+<p>One small window, three additions to the chat you already use.</p>
+<ol>
+<li><strong>Document to Markdown</strong> — drop a file, get clean text, trim it, send it</li>
+<li><strong>A safe "hands" layer</strong> — the AI can read a few folders you allow</li>
+<li><strong>Offline tools</strong> — Pomodoro, launcher, notes</li>
+</ol>
+<p>No API key. No local model. No account.</p>
+      </section>
+      <section class="slide" data-notes="Demo this live if you can. The conversion takes about a second for a&#10;6-page worksheet.&#10;&#10;The PDF is a real 6-page worksheet — the kind a teacher actually hands out." aria-label="Slide 5">
+<h2>Drop a file</h2>
+<ul>
+<li>Drag it onto the window — it converts <strong>locally</strong>, on your machine</li>
+<li>PDF, DOCX, PPTX, XLSX, CSV, HTML, TXT, MD</li>
+<li>Read it, edit it, choose the pages</li>
+<li>One button sends it to the chat</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="This is the slide that separates us from every other student claiming to&#10;&quot;save tokens&quot;. We tried the obvious claim. It was false. We measured it and&#10;showed the measurement.&#10;&#10;If a judge asks &quot;so does it save tokens?&quot; — the answer is: not by converting.&#10;Yes, by trimming. Here is the number." aria-label="Slide 6">
+<h2>Three numbers, not one</h2>
+<p>| | tokens |</p>
+<p>|---|---|</p>
+<p>| if you pasted it by hand | ~2,067 |</p>
+<p>| the clean Markdown | ~2,140 |</p>
+<p>| what you actually send, pages 2–3 | <strong>~680</strong> |</p>
+<ul>
+<li>Markdown is a few percent <strong>larger</strong> than the raw text — we measured it</li>
+<li>The saving is <strong>choosing pages and editing</strong>, not converting</li>
+<li>So the counter shows all three, and never claims a saving it cannot prove</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="The chat window having no permissions is the key architectural point. The&#10;AI cannot reach the file system directly. Everything goes through a server&#10;that asks first.&#10;&#10;The tunnel is because the chat service is in the cloud and the files are on&#10;your laptop. That is the one genuinely awkward part, and we would rather&#10;show it than hide it." aria-label="Slide 7">
+<h2>Letting the AI read files</h2>
+<p>The AI asks Pip, Pip asks you.</p>
+<p>```</p>
+<p>Claude or Le Chat</p>
+<p>│  HTTPS, one bearer token</p>
+<p>▼</p>
+<p>tunnel  ──▶  local MCP server  ──▶  your files</p>
+<p>│</p>
+<p>└──▶ you get a native "allow this?" prompt</p>
+<p>```</p>
+<ul>
+<li>The chat window itself holds <strong>no permissions</strong></li>
+<li>Five tools: list, read, search notes, create note, reveal secret</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="&quot;Checked against the real path&quot; — we resolve symlinks first, so a symlink&#10;pointing at /etc/passwd is refused. We have a test for it.&#10;&#10;The audit log viewer is in the Log tab of the window. Open it on stage if&#10;there is time." aria-label="Slide 8">
+<h2>The safety rules</h2>
+<ul>
+<li><strong>Allowlist</strong> — only folders you named, checked against the real path</li>
+<li><strong>Approval</strong> — every write needs a native macOS prompt</li>
+<li><strong>Authentication</strong> — 127.0.0.1 only, bearer token, compared in constant time</li>
+<li><strong>Limits</strong> — output is capped so one file cannot flood the model</li>
+<li><strong>Audit log</strong> — append-only, and you can read it in the app</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="This slide is short on purpose. It is not the pitch, it is the retention&#10;argument." aria-label="Slide 9">
+<h2>Offline tools</h2>
+<ul>
+<li><strong>Pomodoro</strong> with notifications — works with no AI, no internet</li>
+<li><strong>Launcher</strong> for apps and folders</li>
+<li><strong>Notes and to-dos</strong></li>
+</ul>
+<p>They are not the clever part. They are the reason the window is worth</p>
+<p>keeping open.</p>
+      </section>
+      <section class="slide" data-notes="If asked about cost: everything is free and open source except the AI chat&#10;the user already pays for." aria-label="Slide 10">
+<h2>What it is built on</h2>
+<p>| | |</p>
+<p>|---|---|</p>
+<p>| Shell | Tauri 2, Rust |</p>
+<p>| Interface | React, TypeScript |</p>
+<p>| Conversion | Microsoft MarkItDown, Python |</p>
+<p>| Tools | Model Context Protocol server, TypeScript |</p>
+<p>| Size | one small window, no bundled model |</p>
+      </section>
+      <section class="slide" data-notes="Say this quickly and do not apologise for it. &quot;We tested this against a DOM&#10;stub, not a live page&quot; is a better answer than silence.&#10;&#10;If a judge offers to log in, that is the best possible outcome — say yes&#10;immediately." aria-label="Slide 11">
+<h2>What does not work</h2>
+<p>We would rather say this than have you find it.</p>
+<ul>
+<li><strong>Scanned PDFs</strong> — no OCR. Pip reads text, not images, and says so</li>
+<li><strong>The bridge into the chat page</strong> — tested against a DOM stub, never a live page</li>
+<li><strong>No AI has driven Pip end to end</strong> — we could not sign in to a chat account</li>
+<li><strong>The pilot has not run</strong> — no user numbers yet</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="" aria-label="Slide 12">
+<h2>What is next</h2>
+<ul>
+<li>OCR for scans, locally</li>
+<li>Packaging the converter so there is no Python install</li>
+<li>Watch the AI's own thinking while it works</li>
+<li>The pilot, with real numbers</li>
+</ul>
+      </section>
+      <section class="slide" data-notes="Leave this up during questions so people can photograph the URL." aria-label="Slide 13">
+<h2>Try it</h2>
+<p>```</p>
+<p>git clone https://github.com/haidaralif-24/iWISE</p>
+<p>cd iWISE</p>
+<p>./setup.sh</p>
+<p>./run.sh</p>
+<p>```</p>
+<ul>
+<li>The window opens with <code>Cmd+Shift+Space</code></li>
+<li><code>./test.sh</code> runs every test in the repository</li>
+<li>Screenshots of every screen: <code>docs/screenshots/</code></li>
+</ul>
+      </section>
+      <section class="slide" data-notes="The three lines at the bottom are the three things to remember if nobody&#10;remembers anything else." aria-label="Slide 14">
+<h2>Thank you</h2>
+<h3>Pip — a lightweight AI assistant window with safe local tool access</h3>
+<ul>
+<li>No API key</li>
+<li>No local model</li>
+<li>Your files stay on your machine</li>
+</ul>
+      </section>
+    </main>
+
+    <aside id="notes"></aside>
+
+    <div id="help">
+      <p><kbd>→</kbd> <kbd>space</kbd> next &nbsp; <kbd>←</kbd> previous</p>
+      <p><kbd>n</kbd> speaker notes &nbsp; <kbd>f</kbd> full screen &nbsp; <kbd>?</kbd> this list</p>
+      <p><kbd>cmd</kbd>+<kbd>p</kbd> print to a PDF, one slide per page</p>
+      <p>Press <kbd>esc</kbd> to close this.</p>
+    </div>
+
+    <script>
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const notes = document.getElementById("notes");
+  const counter = document.getElementById("counter");
+  const help = document.getElementById("help");
+  let index = 0;
+
+  function show(next) {
+    index = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+    counter.textContent = (index + 1) + " / " + slides.length;
+    const note = slides[index].dataset.notes || "";
+    notes.textContent = note ? "Notes\n\n" + note : "";
+    location.hash = String(index + 1);
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    switch (event.key) {
+      case "ArrowRight":
+      case " ":
+      case "PageDown":
+        show(index + 1);
+        break;
+      case "ArrowLeft":
+      case "PageUp":
+        show(index - 1);
+        break;
+      case "Home":
+        show(0);
+        break;
+      case "End":
+        show(slides.length - 1);
+        break;
+      case "n":
+      case "N":
+        notes.classList.toggle("open");
+        break;
+      case "f":
+      case "F":
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+        break;
+      case "?":
+        help.classList.toggle("open");
+        break;
+      case "Escape":
+        help.classList.remove("open");
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  });
+
+  document.getElementById("toggle-notes").addEventListener("click", () => {
+    notes.classList.toggle("open");
+  });
+  document.getElementById("toggle-help").addEventListener("click", () => {
+    help.classList.toggle("open");
+  });
+
+  const start = Number(location.hash.slice(1));
+  show(Number.isFinite(start) && start > 0 ? start - 1 : 0);
+</script>
+  </body>
+</html>

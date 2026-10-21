@@ -64,6 +64,20 @@ if [ "$WITH_TUNNEL" = "1" ]; then
       ./ngrok http 8787 --log=stdout) &
     PIDS+=($!)
   elif [ -x sidecars/tunnel/cloudflared ]; then
+    # Say this out loud. The two tunnels are not equivalent: a random
+    # hostname means the connector has to be set up again every time the
+    # tunnel restarts, and a demo where that goes wrong is a demo that goes
+    # wrong.
+    cat >&2 <<'WARNING'
+
+  ────────────────────────────────────────────────────────────────
+   Using cloudflared, not ngrok.
+   The hostname will be different every time you start this, so the
+   MCP connector in the chat site has to be set up again each time.
+   For a stable hostname, run:  ngrok config add-authtoken <token>
+  ────────────────────────────────────────────────────────────────
+
+WARNING
     echo "starting the cloudflared tunnel (no account needed, hostname changes)…"
     (cd sidecars/tunnel && env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
       ./cloudflared tunnel --url http://127.0.0.1:8787 --no-autoupdate) &

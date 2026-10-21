@@ -12,6 +12,12 @@ export type ConvertResult = {
   rawChars: number;
   markdownTokens: number;
   rawTokens: number;
+  /**
+   * True when the document has no text layer at all — a scanned PDF, or an
+   * image-only file. The conversion "succeeds" but returns nothing useful, so
+   * the UI has to say so rather than showing an empty preview.
+   */
+  noTextLayer?: boolean;
 };
 
 export type SidecarStatus = {
