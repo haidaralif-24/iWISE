@@ -1,1 +1,2 @@
 markitdown[pdf,docx,pptx,xlsx]
+pypdf

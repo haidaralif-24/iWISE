@@ -11,6 +11,12 @@ __pycache__/
 sidecars/**/build/
 sidecars/**/*.spec
 
+# tunnel binaries are downloaded, not committed
+sidecars/tunnel/ngrok
+sidecars/tunnel/cloudflared
+sidecars/tunnel/*.zip
+sidecars/tunnel/*.tgz
+
 # never commit audit logs or tokens
 audit.log
 *.token

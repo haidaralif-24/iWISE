@@ -20,11 +20,57 @@ iWISE Regional Final, Software / Programming.
 
 ## Quick start
 
-See `docs/spike-notes.md` for the day-1 checklist and `docs/tunnel-setup.md` for getting the chat
-client to reach the local MCP server (cloudflared needs no account; ngrok needs one command and
-gives a stable URL).
+```bash
+./setup.sh          # one-time: Rust, Python 3.13 + MarkItDown venv, ngrok/cloudflared, npm deps
+./run.sh            # starts the MCP tool server and the Pip window
+./run.sh --tunnel   # also starts an ngrok tunnel for the cloud chat connector
+```
+
+`setup.sh` is safe to re-run — every step is skipped if it is already in place. It never touches
+your system Python: the MarkItDown environment lives in `sidecars/markitdown/.venv`.
+
+To run the pieces by hand:
 
 ```bash
-cd app && npm run tauri dev              # the window
+cd app && npm run tauri dev                      # the window
 cd mcp-server && PIP_MCP_TOKEN=... npm run dev   # the tool server on 127.0.0.1:8787
 ```
+
+The MCP server prints the token and the connector URL on boot. `PIP_MCP_TOKEN` is optional — if it is
+not set, a token is generated and written to `~/.pip/control.json` (mode 0600).
+
+## Tests
+
+```bash
+./test.sh                                        # everything below, in one go
+```
+
+Or individually:
+
+```bash
+cd mcp-server && ./test-tools.sh                 # the tool layer: allowlist, approvals, audit log
+cd app/src-tauri && cargo test                   # the app's command layer
+node bridge/test-inject.js                       # the page script that writes into the chat box
+cd app && npm run build                          # frontend type-check + production bundle
+```
+
+See `docs/spike-notes.md` for the verified checklist, the measured findings and every gotcha, and
+`docs/tunnel-setup.md` for getting the chat client to reach the local MCP server (cloudflared needs
+no account; ngrok needs one command and gives a stable URL).
+
+## How it fits together
+
+```
+Pip window  ──drop a PDF──▶  Python (MarkItDown)  ──▶ clean Markdown + token count
+      │                                                       │
+      │                                          preview, edit, select pages
+      │                                                       │
+      └──────── inject ──▶ chat window (no Tauri permissions)  │
+                                                                │
+Claude (cloud) ──HTTPS──▶ ngrok ──▶ 127.0.0.1:8787 ──▶ MCP tools ──▶ allowlist + approval + audit
+```
+
+The chat window hosts a third-party page and is deliberately absent from
+`app/src-tauri/capabilities/default.json`, so it has no Tauri permissions at all. The AI's file
+access goes through the local MCP server instead, which enforces the folder allowlist, asks before
+writing anything, and writes every call to an append-only audit log.

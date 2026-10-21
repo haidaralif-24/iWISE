@@ -4,7 +4,14 @@
 
 Competition: iWISE Regional Final (Software / Programming)
 Timeline: 7 days
-Stack: Tauri (minimal Rust, template only) + TypeScript everywhere else
+Stack: Tauri (Rust for the native shell, TypeScript for everything the user sees) + one Python sidecar
+
+> **Build status: 2026-10-21.** Tiers 1, 2 and 3 are implemented and verified on this machine.
+> Where the implementation diverged from this document, the document has been corrected in place
+> and the reasoning is recorded in `spike-notes.md`. The three corrections worth knowing about:
+> the Rust side is no longer "template only" (§6), there is deliberately no `Origin` check (§7),
+> and the token saving comes from page selection and editing rather than from Markdown being
+> smaller than raw text (§8).
 
 ---
 
@@ -61,6 +68,10 @@ Build in this order. Each tier is a complete project on its own.
   - `create_note(title, text)` (requires confirmation)
 - Folder allowlist, confirmation prompts, append-only audit log (section 7)
 
+**Build status (2026-10-21).** All of Tier 1 and Tier 2 is built and verified, including saved
+prompt templates. Tier 3 is built: all four tools above, the allowlist, the native confirmation
+prompt and the append-only audit log, with an audit viewer in the window.
+
 ## 5. How the chat reaches the tools
 
 **Decision (2026-10-21): tunnel + remote MCP only.** The script-injection route was considered and dropped — there is no fallback to it. If the tunnel spike fails on a free account, Tier 3 is cut and the project ships Tier 1 + Tier 2.
@@ -112,10 +123,19 @@ Tier 2 still injects converted Markdown into the chat input box, which uses the 
         └────────────────┘
 ```
 
-- Tauri's Rust side stays at the template level. Everything we write is TypeScript. The Rust toolchain still has to be installed to build.
+- **Tauri's Rust side is no longer template-only** (corrected 2026-10-21). The original plan was that
+  every line we wrote would be TypeScript. Two things could not be done from the frontend:
+  spawning the Python converter, and writing into the chat window's DOM. Both are now small Rust
+  commands (`convert_document`, `inject_into_chat`), and the frontend is still TypeScript for
+  everything the user touches. The alternative — a Tauri shell plugin with wide `execute`
+  permissions — would have handed the frontend a general "run any process" capability, which is
+  worse for the security story in §7 than a handful of narrow commands.
 - The chat window is its own window, not an iframe, because many sites block embedding.
 - Python is used only for MarkItDown. Package it as a sidecar executable (PyInstaller) if time allows. Otherwise require `pip install markitdown` and say so honestly.
 - Fallback if Python packaging fails: JS libraries (mammoth for DOCX, pdfjs-dist for PDF, SheetJS for XLSX), with slightly lower quality.
+- The app talks to the MCP server over **files in `~/.pip/`**, not over a socket. The server drops a
+  request in `pending/` and waits for the app's answer in `decisions/`. This keeps the bearer token
+  inside the server — the app never sees it — and means the app needs no HTTP client of its own.
 
 ## 7. Security model (our headline feature)
 
@@ -123,21 +143,54 @@ Giving an AI "hands" is risky, so the safety layer is the part to show off.
 
 1. **Chat window gets no Tauri permissions.** Only our own UI windows may call commands or plugins (Tauri capabilities config).
 2. **Permission checks live in the process that does the work.** Resolve every path with `fs.realpath`, then check it is inside an allowed folder using `path.relative`, to block `../` tricks and symlinks.
-3. **Confirm prompts are shown in our native UI**, never in the web page.
-4. **Authentication always on.** Bind to 127.0.0.1, require a token, check the `Origin` header. With a tunnel, the public endpoint must be authenticated too.
-5. **Restrict MarkItDown inputs.** Allow only `file:` paths inside the allowlist. Block `http(s):` and `data:` URIs so the AI cannot be steered to internal network URLs.
+3. **Confirm prompts are shown in our native UI**, never in the web page. The MCP server writes the
+   pending request to `~/.pip/pending/` and waits; the Pip window polls that folder, shows a native
+   macOS dialog, and writes the answer to `~/.pip/decisions/`. If the window is closed, or nobody
+   answers within the timeout, the request is **denied** — failing closed is the only safe default.
+4. **Authentication always on.** Bind to 127.0.0.1 and require a token, compared with
+   `timingSafeEqual`. The token is presented as `Authorization: Bearer <token>` or `?token=<token>`,
+   because connector UIs differ. **There is deliberately no `Origin` check** (corrected 2026-10-21):
+   the tunneled client is a backend, not a browser, so it sends no `Origin` header to validate — and
+   a check that only ever sees one value would be theatre. The token is the control; without it the
+   endpoint answers 401 from anywhere in the world.
+5. **Restrict MarkItDown inputs.** Allow only local file paths inside the allowlist. Block `http(s):`,
+   `data:` and `file:` URIs so the AI cannot be steered to internal network URLs. The converter calls
+   MarkItDown's `convert_local()`, never `convert()` or `convert_url()`, so a URI cannot be fetched
+   even if a check were missed.
 6. **Cap output size.** Return a token estimate first, then paged or truncated content with a clear "truncated" note.
 7. **Treat document text as untrusted** (prompt injection). Wrap returned text in clear delimiters. Destructive tools always need confirmation.
-8. **Append-only audit log** of every tool call, its arguments, and whether the user approved it.
+8. **Append-only audit log** of every tool call, its arguments, and whether the user approved it. The
+   log is only ever opened in append mode, and the Pip window has a viewer for it.
+
+**Paths are resolved before they are checked.** Every candidate path goes through `fs.realpath` first,
+and only then is tested against the allowed folders with `path.relative`. Resolving first is what
+makes symlinks safe: a link that points out of the allowlist resolves to its target and is refused,
+rather than being allowed because its own location looked fine. This is covered by tests.
 
 ## 8. Differentiation
 
 A floating chat window alone is not new. What is ours:
 
-- Local document-to-Markdown with a **measurable token-savings readout** and prompt preview/edit.
+- Local document-to-Markdown with a **measurable token readout** and prompt preview/edit.
 - A **permissioned, audited** local tool layer that works with the user's existing free-tier chat.
 - Offline tools bundled in the same small window.
 - A deliberate, documented choice of connection route (tunnel + MCP), with the rejected alternative explained rather than hidden.
+
+> **Correction (2026-10-21): the token saving is not where the original pitch said it was.** The
+> first draft of this document promised that converting a document to Markdown would *save* tokens.
+> Measured on the four real samples, it does not: MarkItDown's output is within a few percent of the
+> raw text, and is usually slightly **larger**, because the Markdown syntax costs more characters
+> than the whitespace it removes. The honest version of the claim is:
+>
+> - Markdown is about the same size as the raw text but **structured**, which is what the model
+>   actually needs — and PDF tables are broken in raw text, so the clean Markdown is the only
+>   usable form.
+> - The real saving comes from **page selection and editing**: sending pages 2–3 of a 6-page
+>   worksheet instead of the whole file measured **2,067 tokens → 680 tokens, a 67% cut**. The
+>   counter's job is to let the user see that number *before* they send.
+>
+> The app therefore shows three figures — what pasting by hand would cost, what the clean Markdown
+> costs, and what you are actually sending — and states the saving only when there is one.
 
 ## 9. Evidence plan (day 5)
 
@@ -185,7 +238,7 @@ Record a **backup demo video** in case the chat site or internet misbehaves on t
 
 ## 13. Pitch (draft)
 
-> Students and workers paste messy documents into AI chat and waste time and free-tier limits on formatting noise, while the AI still cannot see their files. Productivity Window is a small floating assistant that converts documents to clean Markdown locally, shows how many tokens you saved, and, with a permissioned and audited tool layer, lets the AI you already use work with your files safely. No API key, no local model, and offline tools included.
+> Students and workers paste messy documents into AI chat and waste time and free-tier limits on formatting noise, while the AI still cannot see their files. Productivity Window is a small floating assistant that converts documents to clean Markdown locally, shows exactly what the prompt will cost before you send it — so you can trim to the pages you actually need instead of the whole file — and, with a permissioned and audited tool layer, lets the AI you already use work with your files safely. No API key, no local model, and offline tools included.
 
 ## 14. Credits and licensing notes
 

@@ -2,6 +2,11 @@
 
 Goal: decide how the AI chat reaches our local tools.
 
+> The spike is done and so is the build. This file is the running record: the original checklist,
+> then what was found while building it, then the corrections to the original claims. The
+> corrections matter more than the checklist — read the sections at the bottom before quoting any
+> number from the top.
+
 ## Checklist
 
 State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or only partly done.
@@ -21,9 +26,13 @@ State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or on
 - [x] Minimal MCP server over Streamable HTTP — `POST /mcp` on 127.0.0.1:8787, one tool
       `reveal_secret`. Verified with curl: `initialize`, `tools/list`, `tools/call` all answer, and
       a wrong bearer token gets 401. `GET /health` returns `ok` for tunnel checks.
-- [x] Tunnel exposes it over HTTPS — ngrok, `https://unbounded-passive-ahoy.ngrok-free.dev`.
-      `/health` answers through the tunnel, and an unauthenticated `POST /mcp` is refused with 401
-      from the internet, so the endpoint is both reachable and closed.
+- [x] Tunnel exposes it over HTTPS — ngrok first, then cloudflared. `/health` answers through the
+      tunnel, and an unauthenticated `POST /mcp` is refused with 401 from the internet, so the
+      endpoint is both reachable and closed. Re-verified end to end through a live cloudflared
+      tunnel with the final build: health ok, 401 without a token, all five tools listed,
+      conversion works, `/etc/passwd` refused.
+      - **ngrok has no authtoken on this machine**, so the stable-hostname path is installed but
+        unexercised. cloudflared is the path that was actually verified.
 - [x] Added as custom connector on a **FREE** Claude account, and the chat can call the tool —
       Claude called `reveal_secret` through the tunnel and got the phrase back. The whole chain
       works: cloud client → tunnel → local MCP server → tool.
@@ -169,3 +178,184 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy ngrok http 8787
 it is now proven end to end rather than assumed. The remaining Tier 3 work is the real tool set
 (`list_files`, `read_document_as_markdown`, …) behind the permission and audit layer, not the
 transport.
+
+---
+
+### 2026-10-21 — toolchain brought up from nothing
+
+The machine had **none** of the toolchain the earlier notes assumed. Installed in this order, all
+from scratch, no Homebrew:
+
+| Tool | Version | How |
+|---|---|---|
+| Rust | 1.99.1 | `rustup` (stable, minimal profile) |
+| Python | 3.13.16 | `uv python install 3.13` — the system Python was 3.9.6, below MarkItDown's floor of 3.10 |
+| uv | 0.13.4 | astral.sh install script |
+| ngrok | 3.39.11 | binary dropped into `sidecars/tunnel/` |
+| cloudflared | 2026.10.2 | binary dropped into `sidecars/tunnel/` |
+
+The MarkItDown environment lives at `sidecars/markitdown/.venv` and is built with `uv`, so the
+machine's system Python is never touched. `setup.sh` does all of the above and is safe to re-run.
+
+**Note the earlier environment claims were wrong for this machine** — `docs/spike-notes.md` said
+cloudflared 2026.10.0, ngrok 3.39.1, CPython 3.14.3 and uv were already present. They were not.
+Everything below is what was actually measured *after* the reinstall.
+
+**`Activity_1.pdf` is not slow.** The 22.2 s recorded earlier was a **cold start** — the first run
+downloads and warms the `magika`/`onnxruntime` model. Warm, the same file takes **0.9 s**. The
+conversion time is not a problem and the UI does not need a progress bar for it; the 180 s timeout
+in the Rust command is generous headroom rather than a real requirement.
+
+### 2026-10-21 — the token-saving claim needed correcting
+
+The original promise was "convert to Markdown and save tokens". Measured properly, that is not what
+happens. `convert.py` now returns **both** the clean Markdown and the raw text of the same document
+(what you would get copy-pasting it by hand), so the two can be compared directly:
+
+| File | Raw text | Clean Markdown | Verdict |
+|---|---|---|---|
+| `Activity_1.docx` | 552 tok | 577 tok | Markdown is 4% **larger** |
+| `Activity_1.pdf` | 571 tok | 652 tok | Markdown is 14% **larger** |
+| `Assignment_1…Buoyancy….pdf` | 1,844 tok | 2,067 tok | Markdown is 12% **larger** |
+| `Essay_Kartun_Sensus_Penduduk.pdf` | 1,496 tok | 1,498 tok | A wash |
+
+The whitespace-normalisation saving claimed earlier (3–5%) **does not show up on these samples** —
+`pdfplumber` and `mammoth` already collapse runs of spaces, so there is nothing left to collapse.
+The normalisation is kept because it costs nothing and does help genuinely justified text, but it is
+not the headline.
+
+**Where the saving actually is: page selection.** Selecting pages of a PDF writes just those pages
+to a temporary PDF (`pypdf`) and converts that, so the token count drops with the page count:
+
+```
+Assignment_1…Buoyancy….pdf, all 6 pages   2,067 tokens
+Assignment_1…Buoyancy….pdf, pages 2-3        680 tokens   -> 67% less
+```
+
+That is a real, measurable, user-driven saving, and it is the number the app leads with. The UI
+therefore shows three figures — *paste by hand*, *clean Markdown*, *you send* — and only claims a
+saving when there is one. When there is not, it says the Markdown is about the same size as the raw
+text but structured, which is what the model actually needs (and PDF tables are unusable in raw
+form). See the correction in `CONCEPT.md` §8.
+
+### 2026-10-21 — Tier 3 tool layer, built and tested
+
+`mcp-server/` grew from one file with one tool to six files and five tools:
+
+| Tool | What it does | Needs approval |
+|---|---|---|
+| `list_files(folder)` | lists an allowed folder | no |
+| `read_document_as_markdown(path, pages)` | converts a document, optionally page-selected | no |
+| `search_notes(query, folder)` | greps text notes for a phrase | no |
+| `create_note(title, text)` | writes a note | **yes** |
+| `reveal_secret` | the original spike tool | no |
+
+**Permission layer.** `permissions.ts` resolves the candidate path with `fs.realpath` **first**, then
+tests it against the allowed folders with `path.relative`. Resolving first is the whole point: a
+symlink inside an allowed folder that points at `/etc` resolves to `/etc` and is refused, instead of
+being allowed because its own location looked innocent. URI schemes (`http:`, `https:`, `data:`,
+`file:`, `ftp:`) are rejected outright. Default allowlist is `~/.pip/notes`, `~/Documents` and
+`~/Desktop`; `PIP_ALLOWED_FOLDERS` overrides it.
+
+**Confirmation.** The server writes `~/.pip/pending/<id>.json` and waits for
+`~/.pip/decisions/<id>.json`. The Pip window polls the pending folder every 1.2 s, shows a native
+macOS dialog, and writes the answer. **No answer means denied.** Files rather than a second HTTP
+port, because that keeps the bearer token inside the server — the app never handles it — and means
+the app needs no HTTP client of its own.
+
+**Audit log.** `~/.pip/audit.log`, one JSON object per line, opened in append mode only. Records the
+tool, its arguments, whether it was allowed, and whether the user approved. The window has a viewer
+for it on the Log tab.
+
+**Tests.** `mcp-server/test-tools.sh` covers the whole layer: tool listing, the allowlist, symlink
+and `../` traversal refusals, URI refusals, document conversion, page selection, notes search, both
+the approve and the decline path of a confirmation, the audit log, and the auth rules (401 without a
+token, 404 on an unknown path). **All pass.**
+
+### 2026-10-21 — the Tauri app, built and tested
+
+Seven Rust unit tests (`cargo test` in `app/src-tauri/`) cover the sidecar discovery, the converter,
+the page-selection token cut, the missing-file error, the approval file round trip, and the URL rule
+that keeps the chat window to `http(s)` only. **All pass.** The frontend type-checks with `tsc` and
+builds with `vite build`.
+
+Two Rust commands exist because two things cannot be done from TypeScript, and both are narrow:
+
+- `convert_document(path, pages)` — spawns the Python sidecar on a worker thread, with a 180 s
+  timeout and a hard kill. The path allowlist for the app is *not* the MCP server's: the user
+  dropped the file, so the user chose it.
+- `inject_into_chat(text)` — evaluates `bridge/inject.js` into the chat webview. The chat window has
+  no Tauri permissions by design, so there is no IPC bridge to use; evaluating the script directly
+  is the only channel it has, and the only thing the script does is write text into the message box.
+  `bridge/inject.js` is embedded in the binary with `include_str!`, so the shipped app carries it.
+
+`bridge/inject.js` handles both kinds of input: a `textarea` (Le Chat) gets the native value setter
+plus an `input` event, because React swallows a plain `element.value = text`; a ProseMirror
+`contenteditable` (Claude) gets `document.execCommand('insertText')`, which is the only thing that
+produces the `beforeinput`/`input` pair those editors listen for. It shows a small toast in the page
+confirming the insert.
+
+**The confirmation dialog is a real macOS alert**, via `tauri-plugin-dialog`, not a div in the app —
+so it appears even when the Pip window is hidden.
+
+### 2026-10-21 — gotchas worth remembering
+
+- **TypeScript 7 needs `"types": ["node"]`** in `tsconfig.json`. Without it, every `node:fs` import
+  fails to resolve and `process.env` is `any`. The `mcp-server` tsconfig had to change.
+- **A `Buffer` is not a valid `Request` body** under the TS 7 DOM types — `Buffer` can be backed by
+  a `SharedArrayBuffer`. Copy it: `new Uint8Array(raw)`.
+- **`tauri-plugin-dialog` v2's `confirm()` has no `detail` field.** The arguments have to be
+  appended to the message.
+- **`cargo test` in a Tauri crate works** for anything that does not touch `tauri::generate_context!`.
+  The crate has to be a lib target for the tests to be picked up; it already was.
+- The `test-tools.sh` suite and the Rust tests both need the venv to exist. `setup.sh` builds it.
+
+### 2026-10-21 — closing the gaps, and one bug found by reading the code
+
+**Prompt templates (the last item in Tier 2) are built.** Six built-in ones — summarise, study
+notes, explain simply, key ideas, quiz me, exam questions — plus the user can save their own,
+stored in local storage next to the Pomodoro settings. The instruction is kept **separate from the
+document body**, so the two stay independently editable, and it sits above the document in the
+outgoing prompt.
+
+**The bridge got its own test file.** `bridge/inject.js` is the only part of Pip that runs inside a
+third-party page, and it cannot be exercised through the GUI here. So it was tested on its own
+against a small DOM stub (`bridge/test-inject.js`, 9 assertions): finding the textarea, the native
+prototype setter that React requires, the `input`/`change` pair, the ProseMirror `insertText` path,
+the fallback when `execCommand` is refused, and the failure case when there is no message box.
+
+Writing that test found the one thing worth finding: **the first two stubs were wrong, and the
+bridge was right.** A stub that sets `this._value` does not match a real textarea, where the
+prototype setter assigns the element's own `value`. Worth remembering when a test fails — check
+whether the test is wrong before you change the code.
+
+**A real bug, found by reading rather than by running.** Drag-and-drop was handled inside the
+Documents tab, which is only mounted while that tab is showing. **Drop a file while you are on the
+Timer tab and nothing would happen** — the handler was not registered. The drop handler now lives
+in `App`, which is always mounted, and hands the paths down. The same pass found a missing
+`dialog:allow-confirm` permission: **`dialog:default` does not include it.** The plugin's default
+set is `allow-message`, `allow-save`, `allow-open` and nothing else, so every native confirmation
+dialog would have failed at runtime with a permission error that looks like nothing happening.
+
+**One test script, one command.** `./test.sh` runs everything: the Rust tests, the frontend
+type-check and production build, the bridge tests, the MCP type-check and the 27-assertion tool
+suite. The MCP tests start **their own server on their own port (8788) with their own state
+folder**, so they never collide with a server you are already running and never write into your
+real notes or audit log. The first version of this did collide — the tests were talking to the
+already-running server, which had a different token, and every assertion failed. A test suite that
+shares state with production is a test suite that only works if nothing else is running.
+
+### Still open
+
+- **A genuinely scanned PDF.** All three PDFs here have real text layers. The OCR case remains
+  untested — §12 already promises to state that limit honestly.
+- **A PPTX sample.** `tests/samples/` still has no slides file, so the PPTX path is exercised only by
+  the extractor code, not by a real file.
+- **Le Chat connector.** The tunnel + connector chain was verified on Claude only.
+- **ngrok has no authtoken on this machine**, so the stable-hostname path is installed but
+  unexercised. cloudflared is the path that was actually verified, end to end, from outside.
+- **Packaging MarkItDown as a PyInstaller sidecar** — not attempted. The app currently requires the
+  `uv` venv to exist, which `setup.sh` creates.
+- **The screen cannot be captured on this machine**, so the UI was verified by building it, type-
+  checking it and driving the code paths underneath it — never by looking at it. The layout and
+  styling have not been seen by anyone.

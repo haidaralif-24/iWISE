@@ -4,14 +4,25 @@ The cloud chat service has to reach a server running on this laptop. That means 
 endpoint, which means a tunnel. There are two ways to do it, and they trade setup pain for URL
 stability.
 
+Both binaries are already installed in `sidecars/tunnel/` by `./setup.sh`, so neither path needs a
+download:
+
+| Binary | Version | Account needed |
+|---|---|---|
+| `sidecars/tunnel/cloudflared` | 2026.10.2 | no |
+| `sidecars/tunnel/ngrok` | 3.39.11 | yes (authtoken) |
+
+`./run.sh --tunnel` picks one for you: ngrok if it has an authtoken configured, cloudflared if it
+does not.
+
 ## Path A — no account, no auth (cloudflared quick tunnel)
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8787
+sidecars/tunnel/cloudflared tunnel --url http://127.0.0.1:8787
 ```
 
 It prints something like `https://random-words-here.trycloudflare.com`. No signup, no token, no
-config. Works immediately.
+config. Works immediately. **This is the path that has actually been verified on this machine.**
 
 **Cost:** the hostname is different every time you start it. That means the connector URL in the
 chat service has to be updated at the start of every session — about twenty seconds of manual work,
@@ -23,13 +34,16 @@ Use this when: you are testing, or you do not want to create an account.
 ## Path B — one-time auth, stable URL (ngrok)
 
 ```bash
-ngrok config add-authtoken <your-authtoken>   # once per machine
-ngrok http 8787
+sidecars/tunnel/ngrok config add-authtoken <your-authtoken>   # once per machine
+sidecars/tunnel/ngrok http 8787
 ```
 
 The ngrok free plan assigns one **dev domain** to your account, for example
 `your-name.ngrok-free.app`. That hostname does not change between restarts, so the connector is
 added once and never touched again.
+
+**Not set up on this machine yet** — there is no `~/.config/ngrok/ngrok.yml`, so ngrok has no
+authtoken and will not start a tunnel until you add one. The binary is installed and ready.
 
 Compose the full URL once:
 
@@ -71,6 +85,31 @@ stable URL removes a whole class of demo-day failure.
 2. Add the connector in the chat service:
    `https://<tunnel-host>/mcp?token=<PIP_MCP_TOKEN>`
 3. Ask the chat to call `reveal_secret`. Expect `The eagle lands at midnight.`
+
+### The proxy gotcha
+
+If `curl` through the tunnel answers `http 000` but the tunnel log shows a healthy connection,
+a proxy is in the way. This machine has `HTTP_PROXY`/`HTTPS_PROXY` set, and the proxy cannot reach
+the `trycloudflare.com` hostname. Send the request with the proxy unset:
+
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+  curl https://<tunnel-host>/health
+```
+
+`run.sh --tunnel` and the tunnel commands in this document already do this.
+
+### What was actually verified
+
+Through a live cloudflared tunnel, from outside the machine:
+
+| Check | Result |
+|---|---|
+| `GET /health` | `ok` |
+| `POST /mcp` with no token | `401` |
+| `POST /mcp` with the token, `tools/list` | all five tools listed |
+| `read_document_as_markdown` on a DOCX | Markdown, fenced as untrusted, with a token estimate |
+| `read_document_as_markdown` on `/etc/passwd` | refused — "path is outside the allowed folders" |
 
 ## When it does not work
 

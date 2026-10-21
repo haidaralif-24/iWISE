@@ -1,28 +1,33 @@
-// Pip MCP server — bare verification build.
-//
-// One tool: reveal_secret. Its only job is to prove that a cloud chat client
-// can reach this machine through a tunnel and get a real answer back.
+// Pip MCP server — the local tool layer.
 //
 // Transport: Streamable HTTP at POST /mcp (v2 SDK; SSE is gone from this line).
 // Bound to 127.0.0.1 — the tunnel is what exposes it, nothing else.
 //
 // Run:  npm run dev
 // Auth: set PIP_MCP_TOKEN, or one is generated and printed on boot.
+//
+// Routes:
+//   GET  /health   liveness, no token needed (used to check a tunnel)
+//   POST /mcp      the MCP endpoint
+//   GET  /pending  tool calls waiting for the user's approval
+//   POST /approve  the app answers one of those requests
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
-const HOST = "127.0.0.1";
-const PORT = Number(process.env.PIP_MCP_PORT ?? 8787);
-
-const TOKEN = process.env.PIP_MCP_TOKEN ?? randomBytes(24).toString("hex");
-const SECRET_MESSAGE = process.env.PIP_SECRET_MESSAGE ?? "The eagle lands at midnight.";
+import { listPending, respond } from "./approvals.js";
+import { HOST, PORT, TOKEN, writeControlFile } from "./config.js";
+import { registerTools, describeAllowlist } from "./tools.js";
 
 function buildServer(): McpServer {
-  const server = new McpServer({ name: "pip-verification", version: "0.1.0" });
+  const server = new McpServer({ name: "pip-tools", version: "0.2.0" });
 
+  registerTools(server);
+
+  // Kept from the spike build: a trivial tool that proves the chain works
+  // without touching the filesystem.
   server.registerTool(
     "reveal_secret",
     {
@@ -32,7 +37,12 @@ function buildServer(): McpServer {
       inputSchema: z.object({}),
     },
     async () => ({
-      content: [{ type: "text", text: SECRET_MESSAGE }],
+      content: [
+        {
+          type: "text" as const,
+          text: process.env.PIP_SECRET_MESSAGE ?? "The eagle lands at midnight.",
+        },
+      ],
     }),
   );
 
@@ -57,12 +67,15 @@ async function toWebRequest(req: IncomingMessage): Promise<Request> {
 
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
-    headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+    if (value === undefined || value === null) continue;
+    headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
   }
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const body = hasBody ? await readBody(req) : undefined;
+  const raw = hasBody ? await readBody(req) : undefined;
+  // Copy into a plain Uint8Array: Buffer can be backed by a SharedArrayBuffer,
+  // which the Request body type does not accept.
+  const body = raw ? new Uint8Array(raw) : undefined;
 
   return new Request(url, { method: req.method ?? "GET", headers, body });
 }
@@ -91,12 +104,47 @@ function isAuthorised(req: IncomingMessage, url: URL): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+function json(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
+}
+
 const httpServer = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     if (url.pathname === "/health") {
       res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+      return;
+    }
+
+    // The approval routes live here rather than in a second process so there is
+    // only one thing to run, and one token to manage.
+    if (url.pathname === "/pending" || url.pathname === "/approve") {
+      if (!isAuthorised(req, url)) {
+        json(res, 401, { error: "unauthorised" });
+        return;
+      }
+
+      if (url.pathname === "/pending") {
+        json(res, 200, { pending: listPending() });
+        return;
+      }
+
+      let body: { id?: string; approved?: boolean } = {};
+      try {
+        body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      } catch {
+        json(res, 400, { error: "invalid json" });
+        return;
+      }
+
+      if (!body.id) {
+        json(res, 400, { error: "missing id" });
+        return;
+      }
+
+      const ok = respond(body.id, body.approved === true);
+      json(res, ok ? 200 : 404, { ok });
       return;
     }
 
@@ -125,10 +173,13 @@ const httpServer = createServer(async (req, res) => {
 });
 
 httpServer.listen(PORT, HOST, () => {
+  writeControlFile();
+
   console.log(`[pip-mcp] listening on http://${HOST}:${PORT}/mcp`);
   console.log(`[pip-mcp] health    http://${HOST}:${PORT}/health`);
   console.log(`[pip-mcp] token     ${TOKEN}`);
-  console.log("[pip-mcp]");
+  console.log("[pip-mcp] allowed folders:");
+  console.log(`  ${describeAllowlist()}`);
   console.log("[pip-mcp] connector URL, pick whichever your client supports:");
   console.log(`          header form:  https://<tunnel-host>/mcp`);
   console.log(`                        Authorization: Bearer ${TOKEN}`);
