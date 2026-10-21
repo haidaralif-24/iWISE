@@ -25,6 +25,8 @@ type Item = {
   markdownTokens: number;
   bytes: number;
   truncated: boolean;
+  /** The file has content but nothing to read — a scan or an image. */
+  noTextLayer: boolean;
 };
 
 const FILE_FILTERS = [
@@ -94,6 +96,7 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
         markdownTokens: result.markdownTokens,
         bytes: result.bytes,
         truncated: result.truncated,
+        noTextLayer: Boolean(result.noTextLayer),
       };
 
       setItems((previous) => {
@@ -102,10 +105,14 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       });
       setActiveId(id);
 
-      if (result.truncated) {
+      if (result.noTextLayer) {
+        // The panel below says this in more detail; a second copy of it
+        // would just be noise.
+        setNotice(null);
+      } else if (result.truncated) {
         setNotice("That document was too long, so it was cut off. Check the preview.");
       }
-      if (pageSpec) {
+      if (pageSpec && !result.noTextLayer) {
         setNotice(`Read pages ${pageSpec}.`);
       }
     } catch (err) {
@@ -261,7 +268,9 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
         }}
       >
         <strong>Drop a file here</strong>
-        <span className="muted">PDF, DOCX, PPTX, XLSX, CSV, HTML — or click to choose</span>
+        <span className="muted">
+          PDF, DOCX, PPTX, XLSX, CSV, HTML, TXT, MD — or click to choose
+        </span>
       </div>
 
       {items.length > 0 && (
@@ -283,7 +292,11 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
               </div>
               <div className="docmeta">
                 {item.pages > 0 && <span>{item.pages} pages</span>}
-                <span>~{formatTokens(item.markdownTokens)} tokens</span>
+                {item.noTextLayer ? (
+                  <span className="bad">no text</span>
+                ) : (
+                  <span>~{formatTokens(item.markdownTokens)} tokens</span>
+                )}
                 {item.pageSpec && <span className="tag">pages {item.pageSpec}</span>}
                 {item.truncated && <span className="bad">truncated</span>}
               </div>
@@ -386,7 +399,7 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
         <div className="readout">
           <div>
             <span className="label">paste by hand</span>
-            <span className="value">~{formatTokens(baseline)}</span>
+            <span className="value">{baseline > 0 ? `~${formatTokens(baseline)}` : "—"}</span>
           </div>
           <div>
             <span className="label">clean markdown</span>
@@ -405,10 +418,23 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
           {baseline > sending.tokens ? " — pages were trimmed" : ""}.
         </p>
       )}
-      {sending.parts.length > 0 && percent === 0 && (
+      {sending.parts.length > 0 && percent === 0 && baseline > 0 && (
         <p className="muted">
           About the same size as the raw text, but structured — which is what the model
           actually needs.
+        </p>
+      )}
+      {sending.parts.length > 0 && baseline === 0 && (
+        <p className="muted">
+          There is no plain-text version to compare against for this file, so only the
+          markdown and the final prompt are counted.
+        </p>
+      )}
+
+      {active?.noTextLayer && (
+        <p className="bad">
+          There is no text in this file. It is probably a scan or a picture — Pip reads
+          text, not images, so it cannot convert it. Open it and copy the text by hand.
         </p>
       )}
 

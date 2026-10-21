@@ -186,6 +186,9 @@ pub struct ConvertResult {
     markdown: String,
     raw_text: String,
     truncated: bool,
+    /// True when the file has content but no extractable text — a scan, or an
+    /// image. The UI says so rather than showing an empty preview.
+    no_text_layer: bool,
     markdown_chars: usize,
     raw_chars: usize,
     markdown_tokens: usize,
@@ -399,6 +402,10 @@ fn convert_blocking(path: String, pages: Option<String>) -> Result<ConvertResult
         raw_text: text(&envelope, "rawText"),
         truncated: envelope
             .get("truncated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        no_text_layer: envelope
+            .get("noTextLayer")
             .and_then(Value::as_bool)
             .unwrap_or(false),
         markdown_chars: number(&stats, "markdownChars") as usize,

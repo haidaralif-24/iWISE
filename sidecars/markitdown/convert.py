@@ -17,6 +17,7 @@ uses the two numbers to show a before/after token readout.
 """
 from __future__ import annotations
 
+import csv
 import json
 import re
 import sys
@@ -201,18 +202,95 @@ def raw_text_xlsx(path: Path, pages: list[int] | None = None) -> tuple[str, int]
     return "\n".join(sheets), len(workbook.worksheets)
 
 
+def raw_text_delimited(path: Path, pages: list[int] | None = None) -> tuple[str, int]:
+    """CSV and TSV, read as plain rows."""
+    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
+    rows: list[str] = []
+    with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
+        for row in csv.reader(handle, delimiter=delimiter):
+            rows.append(", ".join(cell.strip() for cell in row))
+    return "\n".join(rows), 0
+
+
+def raw_text_html(path: Path, pages: list[int] | None = None) -> tuple[str, int]:
+    """HTML, stripped down to the text a browser would show."""
+    import re
+    from html.parser import HTMLParser
+
+    class TextExtractor(HTMLParser):
+        SKIP = {"script", "style", "head", "noscript"}
+
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.parts: list[str] = []
+            self._skip_depth = 0
+
+        def handle_starttag(self, tag: str, attrs: list) -> None:
+            if tag in self.SKIP:
+                self._skip_depth += 1
+            elif tag in {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}:
+                self.parts.append("\n")
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag in self.SKIP:
+                self._skip_depth = max(0, self._skip_depth - 1)
+            elif tag in {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}:
+                self.parts.append("\n")
+
+        def handle_data(self, data: str) -> None:
+            if self._skip_depth == 0 and data.strip():
+                self.parts.append(data)
+
+    html = path.read_text(encoding="utf-8", errors="replace")
+    parser = TextExtractor()
+    parser.feed(html)
+
+    text = "".join(parser.parts)
+    # Collapse the blank lines the tag handling leaves behind.
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*\n\s*", "\n\n", text)
+    return text.strip(), 0
+
+
+def raw_text_plain(path: Path, pages: list[int] | None = None) -> tuple[str, int]:
+    """Plain text, Markdown, and anything else that is already text."""
+    return path.read_text(encoding="utf-8", errors="replace"), 0
+
+
+def raw_text_json(path: Path, pages: list[int] | None = None) -> tuple[str, int]:
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    return json.dumps(data, indent=2, ensure_ascii=False), 0
+
+
 RAW_EXTRACTORS = {
     ".pdf": raw_text_pdf,
     ".docx": raw_text_docx,
     ".pptx": raw_text_pptx,
     ".xlsx": raw_text_xlsx,
+    ".csv": raw_text_delimited,
+    ".tsv": raw_text_delimited,
+    ".html": raw_text_html,
+    ".htm": raw_text_html,
+    ".txt": raw_text_plain,
+    ".md": raw_text_plain,
+    ".markdown": raw_text_plain,
+    ".json": raw_text_json,
+    ".xml": raw_text_plain,
 }
 
 
 def extract_raw(path: Path, pages: list[int] | None = None) -> tuple[str, int]:
     extractor = RAW_EXTRACTORS.get(path.suffix.lower())
     if extractor is None:
-        return "", 0
+        # Unknown extension: if the file is plainly text, use it as-is. Binary
+        # formats we have no extractor for return nothing, and the caller
+        # reports "no comparable raw text" rather than a bogus zero.
+        try:
+            return raw_text_plain(path, pages)
+        except Exception:  # noqa: BLE001
+            return "", 0
     try:
         return extractor(path, pages)
     except Exception:  # noqa: BLE001 - a missing extra must not break conversion
@@ -309,6 +387,10 @@ def main() -> int:
         "markdown": markdown,
         "rawText": raw,
         "truncated": truncated,
+        # A document with bytes but no text is a scan, an image, or a file
+        # format we have no reader for. Saying so is better than showing an
+        # empty preview and letting the user think the file is broken.
+        "noTextLayer": bool(path.stat().st_size > 0 and not markdown.strip()),
         "stats": {
             "markdownChars": len(markdown),
             "rawChars": len(raw),

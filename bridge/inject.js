@@ -7,26 +7,114 @@
 //
 // The Rust side embeds this file and evaluates it into the chat webview, then
 // calls window.__pipInject(text).
+//
+// The chat sites change their markup without notice, so finding the message
+// box is done by scoring candidates rather than by trusting one selector.
+// The score prefers a large, visible box whose label talks about messages,
+// and the text of the page is never read.
 
 (function () {
   if (window.__pipInject) return;
 
+  // Ordered from most specific to most general. The first match is not
+  // automatically the winner — every candidate is scored — but the order
+  // breaks ties.
   const SELECTORS = [
-    // Claude: a ProseMirror contenteditable.
+    // Claude: a ProseMirror composer.
     'div[contenteditable="true"][role="textbox"]',
     'div[contenteditable="true"].ProseMirror',
+    'div[contenteditable="true"][data-contents]',
+    'div[contenteditable="true"][aria-label*="message" i]',
+    'div[contenteditable="true"][aria-label*="prompt" i]',
+    'div[contenteditable="true"][aria-label*="ask" i]',
     'div[contenteditable="true"]',
     // Le Chat and most other chat UIs.
+    'textarea[placeholder]',
     'textarea',
+    'input[type="text"][placeholder]',
     'input[type="text"]',
   ];
 
+  // Words that suggest a box is the composer rather than a search field.
+  const COMPOSER_WORDS =
+    /message|ask|send|prompt|reply|chat|type|write|tell|question|assistant|claude|message/i;
+
+  function isVisible(element) {
+    if (element.disabled || element.readOnly) return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    if (Number(style.opacity) === 0) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 24 && rect.height > 12;
+  }
+
+  function labelOf(element) {
+    const parts = [
+      element.getAttribute("placeholder"),
+      element.getAttribute("aria-label"),
+      element.getAttribute("name"),
+      element.getAttribute("id"),
+      element.getAttribute("data-testid"),
+      element.getAttribute("data-placeholder"),
+    ];
+    return parts.filter(Boolean).join(" ");
+  }
+
+  /**
+   * Higher is better. A chat page usually has more than one editable box —
+   * a search field, a hidden attachment input — so the composer has to be
+   * picked out rather than taken in document order.
+   */
+  function score(element, order) {
+    let value = 100 - order; // earlier selectors win ties
+
+    const rect = element.getBoundingClientRect();
+    const label = labelOf(element);
+
+    if (COMPOSER_WORDS.test(label)) value += 40;
+    if (/search/i.test(label)) value -= 60;
+
+    if (element.tagName === "TEXTAREA") value += 20;
+    if (element.isContentEditable) value += 20;
+    if (element.getAttribute("role") === "textbox") value += 10;
+
+    // The composer sits low on the page.
+    const viewportHeight = window.innerHeight || 800;
+    if (rect.top > viewportHeight * 0.35) value += 15;
+
+    // A real text box, not a sliver.
+    if (rect.width > 200) value += 15;
+    if (rect.height > 40) value += 10;
+
+    // A hidden textarea kept around for a paste handler should not win.
+    if (rect.height < 20) value -= 50;
+
+    return value;
+  }
+
   function findInput() {
-    for (const selector of SELECTORS) {
-      const element = document.querySelector(selector);
-      if (element) return element;
-    }
-    return null;
+    let best = null;
+    let bestScore = -Infinity;
+
+    SELECTORS.forEach((selector, order) => {
+      let found;
+      try {
+        found = document.querySelectorAll(selector);
+      } catch (error) {
+        return; // an unsupported selector must not stop the search
+      }
+
+      for (const element of Array.from(found)) {
+        if (!isVisible(element)) continue;
+        const value = score(element, order);
+        if (value > bestScore) {
+          bestScore = value;
+          best = element;
+        }
+      }
+    });
+
+    return best;
   }
 
   function setTextarea(element, text) {
@@ -90,6 +178,7 @@
       "box-shadow:0 6px 24px rgba(0,0,0,0.3)",
       "pointer-events:none",
     ].join(";");
+    node.setAttribute("role", "status");
 
     document.body.appendChild(node);
     setTimeout(() => node.remove(), 2600);

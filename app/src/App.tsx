@@ -133,6 +133,9 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Check straight away: an approval that arrived while the app was closed
+    // should not wait a full interval to be noticed.
+    void checkApprovals();
     const timer = setInterval(() => void checkApprovals(), 1200);
     return () => clearInterval(timer);
   }, [checkApprovals]);

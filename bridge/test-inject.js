@@ -15,17 +15,40 @@ import vm from "node:vm";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(here, "inject.js"), "utf8");
 
-/** A fake element that records what the bridge did to it. */
-function makeElement({ tagName, isContentEditable = false, selector }) {
+/**
+ * A fake element that records what the bridge did to it.
+ *
+ * `matches` lists the selectors the element answers to. A selector with no
+ * attribute part ("textarea") also matches on the tag name alone.
+ */
+function makeElement({
+  tagName,
+  isContentEditable = false,
+  matches = [],
+  attributes = {},
+  rect = { width: 400, height: 60, top: 500, left: 10 },
+  visible = true,
+  disabled = false,
+  readOnly = false,
+}) {
   const events = [];
   const element = {
     tagName,
     isContentEditable,
-    selector,
+    matches,
+    attributes,
     events,
     value: "",
     textContent: "",
     focused: false,
+    disabled,
+    readOnly,
+    getAttribute(name) {
+      return attributes[name] ?? null;
+    },
+    getBoundingClientRect() {
+      return { ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height };
+    },
     dispatchEvent(event) {
       events.push(event.type);
       return true;
@@ -35,11 +58,19 @@ function makeElement({ tagName, isContentEditable = false, selector }) {
     },
   };
 
+  if (!visible) {
+    // An element that is not on screen: the style lookup reports it hidden.
+    element.style = { display: "none", visibility: "hidden", opacity: "0" };
+  } else {
+    element.style = { display: "block", visibility: "visible", opacity: "1" };
+  }
+
   return element;
 }
 
-/** Builds a window/document pair that reports `element` for one selector. */
-function makeContext(element, { execCommandResult = true } = {}) {
+/** Builds a window/document pair that reports the given elements. */
+function makeContext(elements, { execCommandResult = true } = {}) {
+  const list = elements.filter(Boolean);
   const range = { selectNodeContents() {} };
   const selection = {
     removeAllRanges() {},
@@ -57,17 +88,25 @@ function makeContext(element, { execCommandResult = true } = {}) {
         id: "",
         style: { cssText: "" },
         textContent: "",
+        setAttribute() {},
         remove() {},
       };
     },
-    querySelector(selector) {
-      return element && element.selector === selector ? element : null;
+    querySelectorAll(selector) {
+      const tag = selector.split(/[\s\[>]/)[0];
+      return list.filter((element) => {
+        if (element.matches.includes(selector)) return true;
+        // A bare tag selector matches on the tag name.
+        return !selector.includes("[") && element.tagName.toLowerCase() === tag;
+      });
     },
     execCommand(command, showUi, value) {
       if (command !== "insertText") return false;
       if (!execCommandResult) return false;
-      element.textContent = value;
-      element.events.push("input");
+      const target = list.find((element) => element.isContentEditable);
+      if (!target) return false;
+      target.textContent = value;
+      target.events.push("input");
       return true;
     },
     createRange: () => range,
@@ -99,8 +138,11 @@ function makeContext(element, { execCommandResult = true } = {}) {
   const window = {
     HTMLTextAreaElement: FakeTextAreaElement,
     HTMLInputElement: FakeInputElement,
+    innerHeight: 800,
     getSelection: () => selection,
-    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    getComputedStyle: (element) => element.style,
+    // Retries are fired straight away so the suite does not wait on them.
+    setTimeout: (fn) => setTimeout(fn, 0),
     clearTimeout: (id) => clearTimeout(id),
   };
 
@@ -122,6 +164,10 @@ function makeContext(element, { execCommandResult = true } = {}) {
     },
     Object,
     String,
+    Number,
+    Array,
+    Math,
+    Infinity,
     console,
     setTimeout,
   });
@@ -129,8 +175,8 @@ function makeContext(element, { execCommandResult = true } = {}) {
   return context;
 }
 
-function runBridge(element, options) {
-  const context = makeContext(element, options);
+function runBridge(elements, options) {
+  const context = makeContext(elements, options);
   vm.runInContext(source, context);
   return context;
 }
@@ -153,13 +199,13 @@ function test(name, fn) {
 console.log("bridge/inject.js");
 
 test("defines window.__pipInject", () => {
-  const context = runBridge(null);
+  const context = runBridge([]);
   assert.equal(typeof context.window.__pipInject, "function");
 });
 
 test("finds a textarea and writes to it", () => {
-  const element = makeElement({ tagName: "TEXTAREA", selector: "textarea" });
-  const context = runBridge(element);
+  const element = makeElement({ tagName: "TEXTAREA", matches: ["textarea"] });
+  const context = runBridge([element]);
 
   const ok = context.window.__pipInject("hello from Pip");
 
@@ -169,8 +215,8 @@ test("finds a textarea and writes to it", () => {
 });
 
 test("fires input and change on a textarea", () => {
-  const element = makeElement({ tagName: "TEXTAREA", selector: "textarea" });
-  const context = runBridge(element);
+  const element = makeElement({ tagName: "TEXTAREA", matches: ["textarea"] });
+  const context = runBridge([element]);
 
   context.window.__pipInject("text");
 
@@ -183,8 +229,8 @@ test("uses the native setter so React notices the change", () => {
   // setter, which this stub records.
   let usedNativeSetter = false;
 
-  const element = makeElement({ tagName: "TEXTAREA", selector: "textarea" });
-  const context = makeContext(element);
+  const element = makeElement({ tagName: "TEXTAREA", matches: ["textarea"] });
+  const context = makeContext([element]);
 
   class Tracked {}
   Object.defineProperty(Tracked.prototype, "value", {
@@ -208,10 +254,10 @@ test("uses the native setter so React notices the change", () => {
 test("writes into a ProseMirror contenteditable with insertText", () => {
   const element = makeElement({
     tagName: "DIV",
-    selector: 'div[contenteditable="true"][role="textbox"]',
+    matches: ['div[contenteditable="true"][role="textbox"]'],
     isContentEditable: true,
   });
-  const context = runBridge(element);
+  const context = runBridge([element]);
 
   const ok = context.window.__pipInject("# Heading\n\nBody");
 
@@ -223,10 +269,10 @@ test("writes into a ProseMirror contenteditable with insertText", () => {
 test("falls back to textContent when execCommand is refused", () => {
   const element = makeElement({
     tagName: "DIV",
-    selector: 'div[contenteditable="true"].ProseMirror',
+    matches: ['div[contenteditable="true"].ProseMirror'],
     isContentEditable: true,
   });
-  const context = runBridge(element, { execCommandResult: false });
+  const context = runBridge([element], { execCommandResult: false });
 
   context.window.__pipInject("fallback");
 
@@ -235,21 +281,97 @@ test("falls back to textContent when execCommand is refused", () => {
 });
 
 test("reports failure when there is no message box", () => {
-  const context = runBridge(null);
+  const context = runBridge([]);
   assert.equal(context.window.__pipInject("text"), false);
 });
 
 test("ignores an empty payload", () => {
-  const context = runBridge(null);
+  const context = runBridge([]);
   assert.equal(context.window.__pipInject(""), false);
   assert.equal(context.window.__pipInject(undefined), false);
 });
 
 test("is idempotent — evaluating it twice does not redefine the bridge", () => {
-  const context = runBridge(null);
+  const context = runBridge([]);
   const first = context.window.__pipInject;
   vm.runInContext(source, context);
   assert.equal(context.window.__pipInject, first);
+});
+
+test("prefers the composer over a search box", () => {
+  // A chat page has more than one editable box. The search field comes first
+  // in the document but must not win.
+  const search = makeElement({
+    tagName: "INPUT",
+    matches: ["input[type=\"text\"]"],
+    attributes: { placeholder: "Search chats", type: "text" },
+    rect: { width: 200, height: 30, top: 10, left: 10 },
+  });
+  const composer = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea"],
+    attributes: { placeholder: "Send a message" },
+    rect: { width: 600, height: 80, top: 600, left: 10 },
+  });
+
+  const context = runBridge([search, composer]);
+  context.window.__pipInject("text");
+
+  assert.equal(composer.value, "text");
+  assert.equal(search.value, "", "the search box should have been left alone");
+});
+
+test("ignores a hidden textarea", () => {
+  const hidden = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea"],
+    visible: false,
+    attributes: { placeholder: "Send a message" },
+  });
+  const real = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea"],
+    attributes: { placeholder: "Send a message" },
+  });
+
+  const context = runBridge([hidden, real]);
+  context.window.__pipInject("text");
+
+  assert.equal(real.value, "text");
+  assert.equal(hidden.value, "");
+});
+
+test("ignores a disabled box", () => {
+  const disabled = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea"],
+    disabled: true,
+    attributes: { placeholder: "Send a message" },
+  });
+  const real = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea"],
+    attributes: { placeholder: "Send a message" },
+  });
+
+  const context = runBridge([disabled, real]);
+  context.window.__pipInject("text");
+
+  assert.equal(real.value, "text");
+  assert.equal(disabled.value, "");
+});
+
+test("finds a composer by its placeholder", () => {
+  const composer = makeElement({
+    tagName: "TEXTAREA",
+    matches: ["textarea[placeholder]", "textarea"],
+    attributes: { placeholder: "Ask anything" },
+  });
+
+  const context = runBridge([composer]);
+  context.window.__pipInject("text");
+
+  assert.equal(composer.value, "text");
 });
 
 console.log();

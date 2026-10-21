@@ -19,7 +19,7 @@ Stack: Tauri (Rust for the native shell, TypeScript for everything the user sees
 
 People who use AI chat for work and study repeat the same chores all day:
 
-- Copy-pasting text out of PDFs, Word files and slides into the chat, with messy formatting that wastes tokens and free-tier limits.
+- Copy-pasting text out of PDFs, Word files and slides into the chat, with messy formatting that wastes time and free-tier limits.
 - Switching between the browser tab, a timer, notes and other apps.
 - The AI cannot see their files, so every question needs manual context.
 - Real AI agents normally need paid API keys or powerful hardware, which many students and budget users do not have.
@@ -28,7 +28,7 @@ People who use AI chat for work and study repeat the same chores all day:
 
 **Productivity Window** is a small floating desktop window (always on top, summoned by a global hotkey) that embeds an AI web chat the user already has, and adds:
 
-1. **Document-to-Markdown prompt prep** — drop a file, get clean Markdown, preview it, see the token savings, send it to the chat in one click.
+1. **Document-to-Markdown prompt prep** — drop a file, get clean Markdown, preview it, see exactly what the prompt will cost, send it to the chat in one click.
 2. **A safe "hands" layer (MCP)** — the AI can read allowed folders and convert documents through a local MCP server the user controls.
 3. **Offline productivity tools** — Pomodoro timer, app/shortcut launcher, quick notes. They work with no internet and no AI.
 
@@ -36,7 +36,7 @@ People who use AI chat for work and study repeat the same chores all day:
 
 ## 3. Target users
 
-Primary: students and budget-conscious workers who use free-tier AI chat daily and lose time and tokens on copy-paste and context switching.
+Primary: students and budget-conscious workers who use free-tier AI chat daily and lose time on copy-paste and context switching.
 
 Secondary: people in regions where API costs or high-end hardware are out of reach.
 
@@ -52,10 +52,10 @@ Build in this order. Each tier is a complete project on its own.
 - Quick notes / to-do (local storage)
 
 ### Tier 2 — Manual document bridge (days 2-4)
-- Drag-and-drop file (PDF, DOCX, PPTX, XLSX, CSV, HTML)
+- Drag-and-drop file (PDF, DOCX, PPTX, XLSX, CSV, HTML, TXT, MD)
 - Convert to Markdown with Microsoft MarkItDown
 - Preview and edit the Markdown before sending
-- Token count before vs after conversion
+- Three token figures: pasting by hand, clean Markdown, what you send
 - Select pages/sections, merge several files into one prompt
 - Inject the result into the chat input box
 - Saved prompt templates
@@ -71,6 +71,12 @@ Build in this order. Each tier is a complete project on its own.
 **Build status (2026-10-21).** All of Tier 1 and Tier 2 is built and verified, including saved
 prompt templates. Tier 3 is built: all four tools above, the allowlist, the native confirmation
 prompt and the append-only audit log, with an audit viewer in the window.
+
+Since then, two gaps were closed. The converter now reads CSV, HTML, TXT, MD and JSON as well
+(there was no sample of any of them, so none of them could be tested), and it says so plainly when
+a file has no text to read — a scan or a picture — instead of showing an empty preview. The
+interface is now rendered for real in headless Chrome and measured on every build, which is how
+the clipped-text and small-control problems were found; the screenshots are in `docs/screenshots/`.
 
 ## 5. How the chat reaches the tools
 
@@ -198,14 +204,14 @@ Pilot with 10-20 classmates:
 
 - Before: survey how often they copy-paste documents into AI chat and how long it takes.
 - After: time the same task using Productivity Window.
-- Record: time saved, tokens saved (from the counter), and one-line feedback.
+- Record: time saved, the three token figures from the counter, and one-line feedback.
 
 Present real numbers, even small ones, rather than claims.
 
 ## 10. Demo flow
 
 1. Press the hotkey; the small window appears over another app. Ask a quick question.
-2. Drag a messy PDF in. Show the Markdown preview and "X tokens saved." Send it to the chat.
+2. Drag a messy PDF in. Show the Markdown preview, and the three token figures — pasting by hand, clean Markdown, and what you are about to send. Trim the pages and show the count drop. Send it to the chat.
 3. (If Tier 3 works) Ask the AI to summarize a notes folder. Show the permission prompt and the audit log entry.
 4. Show Pomodoro, launcher and notes working with Wi-Fi off.
 5. Show the pilot results slide.
