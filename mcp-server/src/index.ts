@@ -10,7 +10,7 @@
 // Auth: set PIP_MCP_TOKEN, or one is generated and printed on boot.
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
@@ -76,20 +76,31 @@ async function sendWebResponse(res: ServerResponse, response: Response): Promise
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-function isAuthorised(req: IncomingMessage): boolean {
-  return req.headers.authorization === `Bearer ${TOKEN}`;
+// Two ways to present the token, because connector UIs differ:
+//   1. Authorization: Bearer <token>   — preferred, never appears in logs
+//   2. ?token=<token> on the /mcp URL  — for clients that cannot send headers
+// The model is never told the token; the MCP client attaches it.
+function isAuthorised(req: IncomingMessage, url: URL): boolean {
+  const header = req.headers.authorization;
+  const presented = header?.startsWith("Bearer ")
+    ? header.slice("Bearer ".length).trim()
+    : (url.searchParams.get("token") ?? "");
+
+  const given = Buffer.from(presented);
+  const expected = Buffer.from(TOKEN);
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 const httpServer = createServer(async (req, res) => {
   try {
-    const path = new URL(req.url ?? "/", "http://localhost").pathname;
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
-    if (path === "/health") {
+    if (url.pathname === "/health") {
       res.writeHead(200, { "content-type": "text/plain" }).end("ok");
       return;
     }
 
-    if (path !== "/mcp") {
+    if (url.pathname !== "/mcp") {
       res.writeHead(404, { "content-type": "text/plain" }).end("not found");
       return;
     }
@@ -97,7 +108,7 @@ const httpServer = createServer(async (req, res) => {
     // The token is the real control here: a tunnel makes this reachable from
     // the internet, and the client is a backend, not a browser, so there is no
     // Origin header to check.
-    if (!isAuthorised(req)) {
+    if (!isAuthorised(req, url)) {
       res
         .writeHead(401, { "content-type": "application/json", "www-authenticate": "Bearer" })
         .end(JSON.stringify({ error: "unauthorised" }));
@@ -117,6 +128,9 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`[pip-mcp] listening on http://${HOST}:${PORT}/mcp`);
   console.log(`[pip-mcp] health    http://${HOST}:${PORT}/health`);
   console.log(`[pip-mcp] token     ${TOKEN}`);
-  console.log(`[pip-mcp] connector URL is the tunnel host + /mcp, with header:`);
-  console.log(`          Authorization: Bearer ${TOKEN}`);
+  console.log("[pip-mcp]");
+  console.log("[pip-mcp] connector URL, pick whichever your client supports:");
+  console.log(`          header form:  https://<tunnel-host>/mcp`);
+  console.log(`                        Authorization: Bearer ${TOKEN}`);
+  console.log(`          URL form:     https://<tunnel-host>/mcp?token=${TOKEN}`);
 });

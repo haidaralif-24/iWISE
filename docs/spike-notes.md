@@ -110,8 +110,9 @@ Rewritten from zero, ~120 lines, one file:
 - `createMcpHandler(() => buildServer())` + a small `node:http` adapter that converts the request to a web `Request` and the reply back. No express, no extra dependencies.
 - Streamable HTTP at `POST /mcp`. Bound to `127.0.0.1`, port 8787.
 - Bearer token required, from `PIP_MCP_TOKEN` or generated on boot and printed. No Origin check: the tunneled client is a backend, not a browser, so there is no Origin header to validate — the token is the control.
+- **Two ways to present the token**, because connector UIs differ: `Authorization: Bearer <token>` header, or `?token=<token>` on the `/mcp` URL. Compared with `timingSafeEqual`. The model is never told the token — the MCP client attaches it, which is a connector setting, not a prompt.
 - `GET /health` returns `ok`, so a tunnel can be checked without speaking MCP.
 
-Verified locally with curl: `initialize` returns the server info, `tools/list` returns `reveal_secret`, `tools/call` returns the phrase, a wrong token gets 401, no token gets 401, an unknown path gets 404.
+Verified locally with curl: `initialize` returns the server info, `tools/list` returns `reveal_secret`, `tools/call` returns the phrase, and 401 for a wrong token, a missing token, or no credentials at all — both header and query forms return the secret. Unknown path gets 404.
 
-Next: tunnel it and add it as a connector. Note that the connector needs the `Authorization` header, so the tunnel URL alone is not enough.
+Next: tunnel it and add it as a connector. **The connector needs the token, so the URL alone is not enough** — either paste the `?token=` URL, or set the header if the dialog allows it. Missing credentials show up as a 401 that looks like a tunnel failure.
