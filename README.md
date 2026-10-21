@@ -20,4 +20,11 @@ iWISE Regional Final, Software / Programming.
 
 ## Quick start
 
-See `docs/spike-notes.md` for the day-1 checklist.
+See `docs/spike-notes.md` for the day-1 checklist and `docs/tunnel-setup.md` for getting the chat
+client to reach the local MCP server (cloudflared needs no account; ngrok needs one command and
+gives a stable URL).
+
+```bash
+cd app && npm run tauri dev              # the window
+cd mcp-server && PIP_MCP_TOKEN=... npm run dev   # the tool server on 127.0.0.1:8787
+```
