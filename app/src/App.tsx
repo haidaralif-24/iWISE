@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import Pomodoro from "./Pomodoro";
 import "./App.css";
 
 type HotkeyStatus = {
@@ -66,6 +67,8 @@ function App() {
       </header>
 
       <main className="body">
+        <Pomodoro />
+
         <section className="card">
           <h2>Summon hotkey</h2>
           {status === null && <p className="muted">Checking…</p>}

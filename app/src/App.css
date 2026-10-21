@@ -196,3 +196,88 @@ input:focus {
   color: #5e5e68;
   text-align: center;
 }
+
+/* ---- pomodoro ---- */
+
+.timer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timer-head h2 {
+  margin: 0;
+}
+
+.pill {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #7a7a85;
+  background: #26262d;
+  border: 1px solid #34343c;
+}
+
+.pill.live {
+  color: #8ed09a;
+  border-color: #2f5b3a;
+  background: #1b2a20;
+}
+
+.timer-face {
+  text-align: center;
+  padding: 6px 0 2px;
+}
+
+.time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 44px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #e8e8ea;
+}
+
+.time.break {
+  color: #7c9cf5;
+}
+
+.phase {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7a7a85;
+}
+
+.dots {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  margin: 8px 0 10px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #34343c;
+}
+
+.dot.on {
+  background: #7c9cf5;
+}
+
+.timer-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.timer-actions button {
+  flex: 1;
+}
+
+.timer-actions button.primary {
+  margin-top: 0;
+}
