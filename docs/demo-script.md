@@ -85,4 +85,19 @@ workflow handled locally."
 | "It saves you 67% of your tokens" | "Selecting the two pages you need cuts this document from 2,067 tokens to 680" |
 | "It converts to Markdown to save tokens" | "It converts to Markdown so the model gets structure, and the counter lets you trim before sending" |
 | "The AI can read your files" | "The AI can read files in folders you allow, and only after you approve anything it writes" |
-| "Works with scanned PDFs" | "Scanned PDFs are not tested yet — that is the next thing to build" |
+| "Works with scanned PDFs" | "It reads text, not images — a scan has no text, so it says so and stops" |
+
+## What is actually verified, and how
+
+| Claim | How it was checked |
+|---|---|
+| The interface renders and fits its window | `node app/ui-audit.mjs` — the real app, driven over the Chrome DevTools Protocol at 420×680, measured for clipped text, content outside the window, and controls too small to hit. Screenshots in `docs/screenshots/`. |
+| The drag-and-drop works | The same harness fires a real drop event and the document arrives in the window. |
+| The permission prompt appears with the right tool and arguments | The harness records the native dialog and the answer. It cannot picture the dialog, but the calls are checked. |
+| PDF, DOCX, PPTX, XLSX, CSV, HTML, TXT and MD all convert | `sidecars/markitdown/test-convert.py` — 26 assertions, one per format, against real sample files. |
+| A scanned file is reported as having no text | The same suite, against a real image-only PDF. |
+| The page selector cuts the token count | The same suite: 2,067 tokens → 680 for pages 2–3 of the 6-page worksheet. |
+| The bridge can find the message box | `bridge/test-inject.js` — 13 assertions against a DOM stub. **Not** proven against a real chat page; that still needs a login. |
+| The MCP tools respect the allowlist | `mcp-server/test-tools.sh` — 27 assertions against a live server. |
+| The tunnel works from outside | Verified end to end through a cloudflared tunnel. |
+| The notification fires | **Not** verified — it needs a real desktop session. The code now says out loud when a notification could not be shown, instead of failing silently. |
