@@ -18,9 +18,11 @@ State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or on
   - DOCX — done
   - PPTX — **not tested**, no sample yet
   - scanned PDF — **not tested**, all three PDFs have real text layers
-- [ ] Minimal MCP server (one `ping` tool) over Streamable HTTP
+- [x] Minimal MCP server over Streamable HTTP — `POST /mcp` on 127.0.0.1:8787, one tool
+      `reveal_secret`. Verified with curl: `initialize`, `tools/list`, `tools/call` all answer, and
+      a wrong bearer token gets 401. `GET /health` returns `ok` for tunnel checks.
 - [ ] Tunnel exposes it over HTTPS
-- [ ] Added as custom connector on a FREE Claude account, and the chat can call `ping`
+- [ ] Added as custom connector on a FREE Claude account, and the chat can call the tool
 - [ ] Same test on Le Chat (Mistral) free
 
 ## Decision
@@ -97,3 +99,19 @@ All four exited 0. Text fidelity is good — prose comes out clean and readable.
 Dropping `[all]` saves only 56 MB, because `magika` (file-type detection) is a **core** dependency and pulls `onnxruntime` (80 MB), and the `xlsx` extra pulls `pandas` (70 MB). A PyInstaller sidecar will therefore be large no matter what. Decide on day 4 between: bundle it and accept ~300 MB, or ship `pip install markitdown` and say so honestly (the concept already allows this).
 
 `requirements.txt` now pins `markitdown[pdf,docx,pptx,xlsx]` instead of `[all]` — audio transcription, YouTube, Outlook and the Azure readers are not in scope. Verified: the narrowed set produces **byte-identical** output on all four samples. Env is built with `uv` (see below), CPython 3.14.3, 241 MB on disk.
+
+### 2026-10-21 — MCP server rewritten against the v2 SDK
+
+The first attempt did not start: it imported `SSEServerTransport` from `@modelcontextprotocol/server`, which has no `./sse` export. Two SDK generations were installed at once (`sdk@1.32.1` and `server@2.3.1`), which is what made the import look plausible. v2 removed SSE entirely.
+
+Rewritten from zero, ~120 lines, one file:
+
+- `@modelcontextprotocol/server@2.3.1` only; the v1 `sdk` package was removed (94 packages pruned).
+- `createMcpHandler(() => buildServer())` + a small `node:http` adapter that converts the request to a web `Request` and the reply back. No express, no extra dependencies.
+- Streamable HTTP at `POST /mcp`. Bound to `127.0.0.1`, port 8787.
+- Bearer token required, from `PIP_MCP_TOKEN` or generated on boot and printed. No Origin check: the tunneled client is a backend, not a browser, so there is no Origin header to validate — the token is the control.
+- `GET /health` returns `ok`, so a tunnel can be checked without speaking MCP.
+
+Verified locally with curl: `initialize` returns the server info, `tools/list` returns `reveal_secret`, `tools/call` returns the phrase, a wrong token gets 401, no token gets 401, an unknown path gets 404.
+
+Next: tunnel it and add it as a connector. Note that the connector needs the `Authorization` header, so the tunnel URL alone is not enough.
