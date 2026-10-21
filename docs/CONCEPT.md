@@ -197,4 +197,9 @@ Record a **backup demo video** in case the chat site or internet misbehaves on t
 - Which free account to test first: Claude or Le Chat?
 - Demo on our own laptop only, or installable by others (decides Python bundling)?
 - Does the competition publish specific judging criteria or themes?
-- Stable tunnel URL option available for free?
+- ~~Stable tunnel URL option available for free?~~ **Answered (2026-10-21):** yes. The ngrok free plan
+  includes one assigned dev domain (`<name>.ngrok-free.app`) that stays the same across restarts, so
+  the connector URL is stable and only has to be added once. cloudflared quick tunnels give a random
+  hostname per run and are only good for throwaway tests. ngrok free limits: 1 GB/month, 20k
+  requests, 3 online endpoints — ample. The browser interstitial does not apply to programmatic
+  clients; if it ever does, send `ngrok-skip-browser-warning`.

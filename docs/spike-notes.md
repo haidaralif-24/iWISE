@@ -116,3 +116,24 @@ Rewritten from zero, ~120 lines, one file:
 Verified locally with curl: `initialize` returns the server info, `tools/list` returns `reveal_secret`, `tools/call` returns the phrase, and 401 for a wrong token, a missing token, or no credentials at all — both header and query forms return the secret. Unknown path gets 404.
 
 Next: tunnel it and add it as a connector. **The connector needs the token, so the URL alone is not enough** — either paste the `?token=` URL, or set the header if the dialog allows it. Missing credentials show up as a 401 that looks like a tunnel failure.
+
+### 2026-10-21 — tunnel choice
+
+Both binaries are already installed: `cloudflared 2026.10.0`, `ngrok 3.39.1`.
+
+**Use ngrok.** The free plan assigns one dev domain (`<name>.ngrok-free.app`) that is tied to the
+account and stable across restarts, so the connector URL is composed once and never changes:
+
+```
+https://<assigned-name>.ngrok-free.app/mcp?token=<token>
+```
+
+cloudflared quick tunnels (`cloudflared tunnel --url http://127.0.0.1:8787`) hand out a random
+hostname every run, which means re-adding the connector every run. Fine for a five-minute test,
+wrong for a demo. A named cloudflared tunnel is stable too, but needs a domain on Cloudflare.
+
+Free-plan limits are not a constraint here: 1 GB/month, 20k requests, 3 online endpoints, and free
+endpoints have no idle timeout. The browser interstitial does not apply to API clients; if a
+request ever gets it, send `ngrok-skip-browser-warning` with any value.
+
+One-time setup: `ngrok config add-authtoken <token>`.
