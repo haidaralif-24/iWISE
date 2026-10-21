@@ -9,7 +9,7 @@ Students and young professionals increasingly rely on AI chat services, yet usin
 
 We present **Pip**, a small always-on-top desktop window, built with Tauri and TypeScript, that embeds the AI chat service a user already has and adds three capabilities. First, a document-to-Markdown pipeline built on Microsoft's MarkItDown converts PDF, DOCX, PPTX, and XLSX files locally, lets the user preview and edit the result, and shows a token count before and after conversion. Second, a local Model Context Protocol (MCP) server gives the AI controlled access to the user's files. Safety is the core design focus: a folder allowlist with path canonicalization, confirmation prompts shown in native UI, authenticated connections, output size limits, and an append-only audit log, together with a zero-permission sandbox for the embedded chat page. Third, offline tools (Pomodoro timer, app launcher, and notes) work without internet access or AI.
 
-Pip reuses the AI account or free tier the user already has, so it needs no API key and no local model. W
+Pip reuses the AI account or free tier the user already has, so it needs no API key and no local model. 
 **Keywords:** AI assistant, Model Context Protocol, document conversion, productivity, privacy and security, Tauri
 
 <!--
