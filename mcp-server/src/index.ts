@@ -18,8 +18,24 @@ import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import * as z from "zod";
 
 import { listPending, respond } from "./approvals.js";
-import { HOST, PORT, TOKEN, writeControlFile } from "./config.js";
+import {
+  ALLOW_QUERY_TOKEN,
+  HOST,
+  PORT,
+  TOKEN,
+  assertUsableToken,
+  writeControlFile,
+} from "./config.js";
 import { registerTools, describeAllowlist } from "./tools.js";
+
+// Refuse to start without a real token. Serving files to an unauthenticated
+// caller is worse than not starting.
+try {
+  assertUsableToken();
+} catch (error) {
+  console.error(`[pip-mcp] ${error instanceof Error ? error.message : "invalid PIP_MCP_TOKEN"}`);
+  process.exit(1);
+}
 
 function buildServer(): McpServer {
   const server = new McpServer({ name: "pip-tools", version: "0.2.0" });
@@ -52,12 +68,37 @@ function buildServer(): McpServer {
 // Stateless: the handler builds a fresh server per request from this factory.
 const handler = createMcpHandler(() => buildServer());
 
+// A JSON-RPC request has no business being large; without a cap a single POST
+// could exhaust memory.
+const MAX_REQUEST_BYTES = Number(process.env.PIP_MAX_REQUEST_BYTES ?? 1024 * 1024);
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+    let size = 0;
+    let settled = false;
+
+    req.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      size += chunk.length;
+      if (size > MAX_REQUEST_BYTES) {
+        settled = true;
+        reject(new Error(`request body exceeds ${MAX_REQUEST_BYTES} bytes`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (settled) return;
+      settled = true;
+      resolve(Buffer.concat(chunks));
+    });
+    req.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
   });
 }
 
@@ -91,13 +132,17 @@ async function sendWebResponse(res: ServerResponse, response: Response): Promise
 
 // Two ways to present the token, because connector UIs differ:
 //   1. Authorization: Bearer <token>   — preferred, never appears in logs
-//   2. ?token=<token> on the /mcp URL  — for clients that cannot send headers
+//   2. ?token=<token> on the /mcp URL  — opt-in, for clients that cannot send headers
 // The model is never told the token; the MCP client attaches it.
 function isAuthorised(req: IncomingMessage, url: URL): boolean {
+  // The startup check makes this unreachable, but comparing two empty buffers
+  // would authorise everything, so keep the guard.
+  if (TOKEN.length === 0) return false;
+
   const header = req.headers.authorization;
-  const presented = header?.startsWith("Bearer ")
-    ? header.slice("Bearer ".length).trim()
-    : (url.searchParams.get("token") ?? "");
+  const fromHeader = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+  const fromQuery = ALLOW_QUERY_TOKEN ? (url.searchParams.get("token") ?? "").trim() : "";
+  const presented = fromHeader || fromQuery;
 
   const given = Buffer.from(presented);
   const expected = Buffer.from(TOKEN);
@@ -183,5 +228,12 @@ httpServer.listen(PORT, HOST, () => {
   console.log("[pip-mcp] connector URL, pick whichever your client supports:");
   console.log(`          header form:  https://<tunnel-host>/mcp`);
   console.log(`                        Authorization: Bearer ${TOKEN}`);
-  console.log(`          URL form:     https://<tunnel-host>/mcp?token=${TOKEN}`);
+  if (ALLOW_QUERY_TOKEN) {
+    console.log(`          URL form:     https://<tunnel-host>/mcp?token=${TOKEN}`);
+    console.warn(
+      "[pip-mcp] PIP_ALLOW_QUERY_TOKEN=1: ?token= is accepted. Query strings can appear in tunnel and proxy logs.",
+    );
+  } else {
+    console.log("          (query-string tokens are disabled; set PIP_ALLOW_QUERY_TOKEN=1 to enable)");
+  }
 });

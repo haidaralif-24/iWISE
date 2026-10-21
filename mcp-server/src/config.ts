@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,7 +5,42 @@ import path from "node:path";
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.PIP_MCP_PORT ?? 8787);
 
-export const TOKEN = process.env.PIP_MCP_TOKEN ?? randomBytes(24).toString("hex");
+/**
+ * The bearer token.
+ *
+ * It must be set explicitly. `?? randomBytes(...)` looked helpful but was a
+ * dead end: the generated value is written to the control file before anyone
+ * can copy it into a connector, so the only way to use it was to read it out of
+ * a file. Worse, `PIP_MCP_TOKEN=""` is not nullish, so the token became the
+ * empty string — and an empty token compares equal to a missing Authorization
+ * header, which authorised every request.
+ */
+const CONFIGURED_TOKEN = (process.env.PIP_MCP_TOKEN ?? "").trim();
+export const TOKEN = CONFIGURED_TOKEN;
+
+export const MIN_TOKEN_LENGTH = 16;
+
+/** Called before the server starts listening; throws rather than serving files unauthenticated. */
+export function assertUsableToken(): void {
+  if (TOKEN.length === 0) {
+    throw new Error(
+      "PIP_MCP_TOKEN is unset or empty. This server reads files, so it will not run unauthenticated. " +
+        "Set it to a long random value, for example: openssl rand -hex 32",
+    );
+  }
+  if (TOKEN.length < MIN_TOKEN_LENGTH) {
+    throw new Error(
+      `PIP_MCP_TOKEN is shorter than ${MIN_TOKEN_LENGTH} characters. Use a long random value.`,
+    );
+  }
+}
+
+/**
+ * Query-string tokens end up in tunnel and proxy logs, so they are opt-in.
+ * Some connector UIs cannot send an Authorization header, which is why the
+ * fallback exists at all.
+ */
+export const ALLOW_QUERY_TOKEN = process.env.PIP_ALLOW_QUERY_TOKEN === "1";
 
 /**
  * Where the server keeps its own state: the control file (so the app can find

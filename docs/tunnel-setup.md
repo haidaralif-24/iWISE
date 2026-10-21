@@ -42,14 +42,18 @@ The ngrok free plan assigns one **dev domain** to your account, for example
 `your-name.ngrok-free.app`. That hostname does not change between restarts, so the connector is
 added once and never touched again.
 
-**Not set up on this machine yet** — there is no `~/.config/ngrok/ngrok.yml`, so ngrok has no
-authtoken and will not start a tunnel until you add one. The binary is installed and ready.
+**Already set up on this machine.** The config lives at
+`~/Library/Application Support/ngrok/ngrok.yml` on macOS (not `~/.config/ngrok/ngrok.yml`), and it
+holds an authtoken. A tunnel was run and verified end to end on 2026-10-21 — see the spike notes.
 
 Compose the full URL once:
 
 ```
 https://your-name.ngrok-free.app/mcp?token=<PIP_MCP_TOKEN>
 ```
+
+That URL form only works when the server is started with `PIP_ALLOW_QUERY_TOKEN=1`. Without it, use
+the plain `/mcp` URL and send `Authorization: Bearer <token>` as a header instead.
 
 Use this when: you are demoing, or you want the setup to survive restarts.
 
@@ -82,8 +86,9 @@ stable URL removes a whole class of demo-day failure.
 
 1. `curl https://<tunnel-host>/health` → expect `ok`. This proves the tunnel forwards, with no
    token involved. If this fails, the problem is the tunnel, not the connector.
-2. Add the connector in the chat service:
-   `https://<tunnel-host>/mcp?token=<PIP_MCP_TOKEN>`
+2. Add the connector in the chat service. Either `https://<tunnel-host>/mcp` plus an
+   `Authorization: Bearer <PIP_MCP_TOKEN>` header, or — with `PIP_ALLOW_QUERY_TOKEN=1` —
+   `https://<tunnel-host>/mcp?token=<PIP_MCP_TOKEN>` as a single URL.
 3. Ask the chat to call `reveal_secret`. Expect `The eagle lands at midnight.`
 
 ### The proxy gotcha
