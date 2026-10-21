@@ -63,9 +63,9 @@ Build in this order. Each tier is a complete project on its own.
 
 ## 5. How the chat reaches the tools
 
-There are two possible bridges. Pick one after the day-1 spike, and keep the other as a fallback.
+**Decision (2026-10-21): tunnel + remote MCP only.** The script-injection route was considered and dropped — there is no fallback to it. If the tunnel spike fails on a free account, Tier 3 is cut and the project ships Tier 1 + Tier 2.
 
-### Option A — Tunnel + remote MCP (primary plan)
+### The bridge
 
 ```
 AI chat (cloud) --HTTPS--> tunnel --> localhost MCP server (TS) --> tools
@@ -74,34 +74,20 @@ AI chat (cloud) --HTTPS--> tunnel --> localhost MCP server (TS) --> tools
 - The chat service connects to a public HTTPS URL, which a tunnel (cloudflared or ngrok, bundled as a sidecar) forwards to the local server.
 - The MCP server must use Streamable HTTP, not only stdio.
 - The user adds the URL once as a custom connector in the chat site's settings, and our app shows a copy button and a short guide.
-- Verified in research (Oct 2026): Claude allows custom connectors on the Free plan, limited to one connector. Mistral Le Chat supports custom MCP connectors on Free. ChatGPT custom MCP (developer mode) is not available on Free, so ChatGPT is out for Option A. Re-check these before the final, since plan rules change.
+- Verified in research (Oct 2026): Claude allows custom connectors on the Free plan, limited to one connector. Mistral Le Chat supports custom MCP connectors on Free. ChatGPT custom MCP (developer mode) is not available on Free, so **ChatGPT is out of scope** for this project. Re-check these before the final, since plan rules change.
 - Risks: random tunnel URLs change on restart (look for a stable domain option); a public URL to a file-capable server **must** be authenticated; connector setup is a one-time manual step.
 
-### Option B — Script injection bridge (fallback / alternative)
+### Rejected: script injection
 
-```
-Chat page <-- injected script --> local bridge (authenticated localhost) --> tools
-```
+Considered and dropped on 2026-10-21. Kept here because the reasoning is part of the pitch.
 
-- A script injected into the embedded chat page watches the AI's replies for tool-call requests in an agreed format, sends them to the local bridge, runs the tool, then types the result back into the chat input.
-- The system prompt (or a first message) teaches the AI the format, for example a fenced JSON block.
-- Pros: works with **any** chatbot including ChatGPT free, needs no tunnel, no public URL, no connector slot.
-- Cons: fragile (breaks when the site's HTML changes), depends on the AI following the format reliably, may conflict with a site's terms of service, and is less "standard MCP." Be upfront about this in the presentation.
-- Security: the injected script lives in an untrusted page, so it must only talk to the bridge through an authenticated local channel and have no access to privileged Tauri commands.
+- It is **not MCP**. The abstract and the security story are built on the protocol; a custom JSON convention would make both inaccurate.
+- It needs a full extra model turn per tool call — the model writes a block, then re-reads the result and answers again.
+- It depends on the model reliably emitting the format, which it will not always do in long conversations.
+- It breaks on any DOM change in the host page: silent, unpredictable failure, worst possible during a demo.
+- It runs our code inside an untrusted page and gives that page a channel into the local bridge, which weakens the zero-permission claim in section 7.
 
-### Comparison
-
-| | A: Tunnel + MCP | B: Script injection |
-|---|---|---|
-| Standard MCP | Yes | No (custom format) |
-| Works on ChatGPT free | No | Possible |
-| Works on Claude / Le Chat free | Yes (to verify) | Yes |
-| Needs public URL | Yes | No |
-| Reliability | Higher | Lower (UI changes break it) |
-| Setup for user | One-time connector add | None |
-| ToS risk | Low | Higher, check each service |
-
-**Decision rule:** if A passes the day-1/2 spike on a free account, build A. If it fails, try B for the demo. If both fail, ship Tier 1 + Tier 2 only. Tier 2's "inject text into the input box" uses the same page-script technique as B, so the injection work is never wasted.
+Tier 2 still injects converted Markdown into the chat input box, which uses the same page-script technique. That work is separate from tool access and stays.
 
 ## 6. Architecture
 
@@ -120,7 +106,7 @@ Chat page <-- injected script --> local bridge (authenticated localhost) --> too
         │ permission +   │        └──────────────────┘
         │ audit layer    │
         └───────┬────────┘
-                │ (Option A only)
+                │
         ┌───────▼────────┐
         │ tunnel sidecar │───▶ public HTTPS URL ───▶ AI chat service
         └────────────────┘
@@ -151,7 +137,7 @@ A floating chat window alone is not new. What is ours:
 - Local document-to-Markdown with a **measurable token-savings readout** and prompt preview/edit.
 - A **permissioned, audited** local tool layer that works with the user's existing free-tier chat.
 - Offline tools bundled in the same small window.
-- Honest engineering of the connection problem (tunnel vs injection) with clear trade-offs.
+- A deliberate, documented choice of connection route (tunnel + MCP), with the rejected alternative explained rather than hidden.
 
 ## 9. Evidence plan (day 5)
 
@@ -178,7 +164,7 @@ Record a **backup demo video** in case the chat site or internet misbehaves on t
 | Day | Goal |
 |---|---|
 | 1 | Install Rust + Tauri, floating window, hotkey. **Test chat login inside the webview.** Quick MarkItDown test on 3-4 real files (include a scanned PDF). Start tunnel spike: minimal TS MCP server with a `ping` tool exposed through a tunnel, added as a custom connector on a free Claude account. |
-| 2 | Finish the spike decision (A, B, or skip). Pomodoro timer. Drag-and-drop to Markdown. |
+| 2 | Confirm the tunnel spike works on a free account. If it does not, cut Tier 3 and say so. Pomodoro timer. Drag-and-drop to Markdown. |
 | 3 | Launcher + notes. Markdown preview and inject into chat input. |
 | 4 | Token counter, merge files, MarkItDown packaging attempt. Start permission layer if Tier 3 is a go. |
 | 5 | Tier 3 tools + audit log (if go). Pilot with classmates. |
@@ -190,7 +176,7 @@ Record a **backup demo video** in case the chat site or internet misbehaves on t
 | Risk | Fallback |
 |---|---|
 | Chat site blocks login in embedded webview | Try email login or another service; test on day 1 |
-| Tunnel/connector fails on free plan | Option B injection, or ship Tier 1+2 |
+| Tunnel/connector fails on free plan | Cut Tier 3. Ship Tier 1 + Tier 2, which is already a complete project |
 | Python packaging too heavy | Require pip install for the demo, or JS converters |
 | Scanned PDFs return no text | State the limit honestly; OCR only if time allows |
 | Terms of service concerns | Position as an integration layer, read each service's policy, say so in the pitch |

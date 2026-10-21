@@ -25,12 +25,14 @@ State as of 2026-10-21. `[x]` = verified on this machine, `[ ]` = not done or on
 
 ## Decision
 
-Nothing to decide yet — the decision depends on the last four items above. Do not tick one of these
-until `ping` is reachable from a free account.
+**Decided 2026-10-21: tunnel + remote MCP.** Script injection is rejected and will not be built.
 
-- [ ] Option A (tunnel + MCP)
-- [ ] Option B (script injection)
-- [ ] Tier 1 + Tier 2 only
+- [x] Option A (tunnel + MCP) — **chosen**. Build this.
+- [ ] Option B (script injection) — rejected. See `CONCEPT.md` §5 for the reasoning.
+- [ ] Tier 1 + Tier 2 only — the fallback *only* if the tunnel spike fails on a free account.
+
+Nothing above the line can be ticked until `ping` is reachable from a free account. If it is not,
+the project ships Tier 1 + Tier 2 and the pitch drops the MCP claim.
 
 ## Findings
 (write what worked / failed here)

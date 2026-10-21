@@ -14,7 +14,7 @@ iWISE Regional Final, Software / Programming.
 | `mcp-server/` | TypeScript MCP server + permission and audit layer |
 | `sidecars/markitdown/` | Python MarkItDown wrapper (document to Markdown) |
 | `sidecars/tunnel/` | Tunnel binary notes (cloudflared / ngrok) |
-| `bridge/` | Script-injection fallback (Option B) |
+| `bridge/` | Page-script helper for inserting Markdown into the chat input (Tier 2). Not a tool bridge — tool access goes through MCP |
 | `docs/` | Concept, spike notes, pilot survey, demo script |
 | `tests/samples/` | Real test files: textbook PDF, PPTX, DOCX, scanned PDF |
 

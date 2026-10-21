@@ -1,6 +1,7 @@
 # Tunnel sidecar
 
-Option A needs a public HTTPS URL that forwards to the local MCP server.
+The tunnel is the only route from the cloud chat service to the local MCP server, so it needs a
+public HTTPS URL that forwards to it.
 
 - cloudflared (Cloudflare Tunnel): quick tunnels give a random URL per run.
 - ngrok: check whether a free static domain is still offered.
