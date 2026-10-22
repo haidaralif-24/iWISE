@@ -32,9 +32,12 @@ your system Python: the MarkItDown environment lives in `sidecars/markitdown/.ve
 To run the pieces by hand:
 
 ```bash
-cd app && npm run tauri dev                      # the window
-cd mcp-server && PIP_MCP_TOKEN=... npm run dev   # the tool server on 127.0.0.1:8787
+cd app && npm run tauri dev        # the window
+cd mcp-server && npm run dev       # the tool server on 127.0.0.1:8787
 ```
+
+The MarkItDown sidecar is not a separate process: the window runs `convert.py` from the sidecar venv
+whenever it converts a document, so there is nothing else to start.
 
 `PIP_MCP_TOKEN` is optional. If you set it, it must be at least 16 characters and it wins over
 everything else. If you don't, the server generates one on first run and saves it to

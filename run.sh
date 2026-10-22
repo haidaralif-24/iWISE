@@ -30,13 +30,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # --------------------------------------------------------------------------
-# The MCP server. The token is generated here and printed, so it never has to
-# be written down.
+# The MCP server. It resolves its own token: PIP_MCP_TOKEN if set, otherwise
+# the one saved in ~/.pip/token, generating and saving one on first run. Do not
+# generate a token here — that would rotate it on every launch and break a
+# connector that was already configured.
 # --------------------------------------------------------------------------
-if [ -z "${PIP_MCP_TOKEN:-}" ]; then
-  PIP_MCP_TOKEN="$(openssl rand -hex 24)"
-fi
-export PIP_MCP_TOKEN
 
 echo "starting the MCP server…"
 (cd mcp-server && npm run dev) &
@@ -44,7 +42,7 @@ PIDS+=($!)
 
 # Give it a moment so the health check does not race it.
 for _ in $(seq 1 40); do
-  if curl -sf http://127.0.0.1:8787/health >/dev/null 2>&1; then
+  if curl -sf --noproxy '*' http://127.0.0.1:8787/health >/dev/null 2>&1; then
     echo "the MCP server is up on http://127.0.0.1:8787/mcp"
     break
   fi
@@ -58,18 +56,38 @@ if [ "$WITH_TUNNEL" = "1" ]; then
   # ngrok gives a stable hostname, but only with an account. cloudflared needs
   # no account but the hostname changes every time. Prefer ngrok when it is
   # set up, fall back to cloudflared when it is not.
-  if [ -x sidecars/tunnel/ngrok ] && [ -f "${HOME}/.config/ngrok/ngrok.yml" ]; then
+  # The config lives in different places per platform, and a Homebrew install is
+  # just as good as a vendored copy, so check both before giving up.
+  NGROK_CONFIG=""
+  for candidate in \
+    "${HOME}/Library/Application Support/ngrok/ngrok.yml" \
+    "${HOME}/.config/ngrok/ngrok.yml"
+  do
+    if [ -f "$candidate" ]; then NGROK_CONFIG="$candidate"; break; fi
+  done
+
+  NGROK_BIN=""
+  for candidate in sidecars/tunnel/ngrok "$(command -v ngrok || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then NGROK_BIN="$candidate"; break; fi
+  done
+
+  CF_BIN=""
+  for candidate in sidecars/tunnel/cloudflared "$(command -v cloudflared || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then CF_BIN="$candidate"; break; fi
+  done
+
+  if [ -n "$NGROK_BIN" ] && [ -n "$NGROK_CONFIG" ]; then
     echo "starting the ngrok tunnel (stable hostname)…"
-    (cd sidecars/tunnel && env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
-      ./ngrok http 8787 --log=stdout) &
+    env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+      "$NGROK_BIN" http 8787 --log=stdout &
     PIDS+=($!)
-  elif [ -x sidecars/tunnel/cloudflared ]; then
+  elif [ -n "$CF_BIN" ]; then
     echo "starting the cloudflared tunnel (no account needed, hostname changes)…"
-    (cd sidecars/tunnel && env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
-      ./cloudflared tunnel --url http://127.0.0.1:8787 --no-autoupdate) &
+    env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+      "$CF_BIN" tunnel --url http://127.0.0.1:8787 --no-autoupdate &
     PIDS+=($!)
   else
-    echo "no tunnel binary found — run ./setup.sh" >&2
+    echo "no tunnel binary found — run ./setup.sh, or install ngrok or cloudflared" >&2
   fi
 fi
 
