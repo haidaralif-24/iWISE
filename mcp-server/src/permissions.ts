@@ -72,9 +72,9 @@ export function checkPath(candidate: string): PathCheck {
   return {
     ok: false,
     reason:
-      `path is outside the allowed folders: ${resolved}\n` +
-      `allowed: ${allowedFolders().join(", ")}\n` +
-      `set PIP_ALLOWED_FOLDERS to change this`,
+      `path is outside the folders the user shared: ${resolved}\n` +
+      `shared: ${allowedFolders().join(", ")}\n` +
+      `the user can add a folder in the Pip window`,
   };
 }
 
@@ -114,6 +114,6 @@ export function checkFolder(candidate: string): PathCheck {
 
   return {
     ok: false,
-    reason: `folder is outside the allowed folders: ${raw}\nallowed: ${roots.join(", ")}`,
+    reason: `folder is outside the folders the user shared: ${raw}\nshared: ${roots.join(", ")}`,
   };
 }

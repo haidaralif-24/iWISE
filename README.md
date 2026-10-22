@@ -85,3 +85,13 @@ The chat window hosts a third-party page and is deliberately absent from
 `app/src-tauri/capabilities/default.json`, so it has no Tauri permissions at all. The AI's file
 access goes through the local MCP server instead, which enforces the folder allowlist, asks before
 writing anything, and writes every call to an append-only audit log.
+
+### Folder access
+
+**Nothing is shared by default.** The AI can read documents in the folders you add in the
+**Access** tab, and nowhere else. The notes folder is always shared, because the AI writes notes
+there.
+
+The list lives in `~/.pip/allowlist.json` (mode 0600) and the server reads it on every tool call, so
+adding or removing a folder takes effect immediately — no restart, no reconnecting the tunnel.
+Removing a folder revokes access for the next request, not the one in flight.

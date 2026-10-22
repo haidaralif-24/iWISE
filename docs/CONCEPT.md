@@ -143,6 +143,13 @@ Giving an AI "hands" is risky, so the safety layer is the part to show off.
 
 1. **Chat window gets no Tauri permissions.** Only our own UI windows may call commands or plugins (Tauri capabilities config).
 2. **Permission checks live in the process that does the work.** Resolve every path with `fs.realpath`, then check it is inside an allowed folder using `path.relative`, to block `../` tricks and symlinks.
+   **The user grants folders one at a time, in the Pip window, and nothing is shared by default**
+   (corrected 2026-10-22). The list lives in `~/.pip/allowlist.json`, which the server re-reads on
+   every tool call, so a grant or a revocation applies immediately without restarting anything. The
+   only folder that is always shared is `~/.pip/notes`, because the AI writes notes there. The
+   previous default — `~/Documents` and `~/Desktop` — was removed: it let the AI read a whole
+   personal folder that the user had never chosen, which is exactly what this section promises not
+   to happen.
 3. **Confirm prompts are shown in our native UI**, never in the web page. The MCP server writes the
    pending request to `~/.pip/pending/` and waits; the Pip window polls that folder, shows a native
    macOS dialog, and writes the answer to `~/.pip/decisions/`. If the window is closed, or nobody

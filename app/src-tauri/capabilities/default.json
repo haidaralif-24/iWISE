@@ -9,6 +9,7 @@
     "notification:default",
     "dialog:default",
     "dialog:allow-confirm",
+    "dialog:allow-open",
     "core:window:allow-close",
     "core:window:allow-minimize",
     "core:window:allow-hide",

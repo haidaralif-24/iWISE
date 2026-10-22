@@ -505,6 +505,187 @@ fn list_notes() -> Vec<NoteFile> {
     notes
 }
 
+// ---------------------------------------------------------------------------
+// Folder access.
+//
+// The user grants folders one at a time from this window. The MCP server reads
+// the same file on every tool call, so a grant takes effect immediately and
+// nothing has to be restarted. Nothing outside these folders is readable, and
+// nothing at all is shared until the user adds it.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct SharedFolder {
+    path: String,
+    /// The notes folder is always shared: `create_note` writes there.
+    always: bool,
+    /// False when the folder was granted but has since been deleted or unmounted.
+    present: bool,
+}
+
+fn allowlist_file() -> PathBuf {
+    state_dir().join("allowlist.json")
+}
+
+fn read_shared_folders_from(file: &Path) -> Vec<String> {
+    let raw = match fs::read_to_string(file) {
+        Ok(raw) => raw,
+        // No file yet means the user has granted nothing. Not an error.
+        Err(_) => return Vec::new(),
+    };
+
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+
+    parsed
+        .get("folders")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|entry| entry.trim().to_string())
+                .filter(|entry| !entry.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn write_shared_folders_to(file: &Path, folders: &[String]) -> Result<(), String> {
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("could not create {}: {err}", parent.display()))?;
+    }
+
+    let temp = file.with_extension("json.tmp");
+    let payload = serde_json::json!({ "folders": folders });
+
+    // Write then rename. A crash mid-write must not leave a truncated file that
+    // the server would read as "the user shares nothing".
+    fs::write(&temp, serde_json::to_vec_pretty(&payload).map_err(|err| err.to_string())?)
+        .map_err(|err| format!("could not write {}: {err}", temp.display()))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&temp, fs::Permissions::from_mode(0o600));
+    }
+
+    fs::rename(&temp, file).map_err(|err| format!("could not save {}: {err}", file.display()))
+}
+
+fn read_shared_folders() -> Vec<String> {
+    read_shared_folders_from(&allowlist_file())
+}
+
+fn write_shared_folders(folders: &[String]) -> Result<(), String> {
+    write_shared_folders_to(&allowlist_file(), folders)
+}
+
+/// Canonicalise, so a granted symlink is stored as its target and matches what
+/// the server compares against.
+fn canonical_folder(path: &str) -> Result<PathBuf, String> {
+    let raw = path.trim();
+    if raw.is_empty() {
+        return Err("no folder given".into());
+    }
+
+    let expanded = if let Some(rest) = raw.strip_prefix('~') {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+        PathBuf::from(home).join(rest.trim_start_matches('/'))
+    } else {
+        PathBuf::from(raw)
+    };
+
+    let resolved = fs::canonicalize(&expanded)
+        .map_err(|_| format!("no such folder: {}", expanded.display()))?;
+
+    if !resolved.is_dir() {
+        return Err(format!("not a folder: {}", resolved.display()));
+    }
+
+    Ok(resolved)
+}
+
+#[tauri::command]
+fn shared_folders() -> Vec<SharedFolder> {
+    let mut folders: Vec<SharedFolder> = read_shared_folders()
+        .into_iter()
+        .map(|path| {
+            let present = Path::new(&path).is_dir();
+            SharedFolder { path, always: false, present }
+        })
+        .collect();
+
+    // Shown first and never removable: `create_note` writes here.
+    folders.insert(
+        0,
+        SharedFolder {
+            path: notes_dir().to_string_lossy().into_owned(),
+            always: true,
+            present: true,
+        },
+    );
+
+    folders
+}
+
+/// Component-wise containment: `/a/b` is within `/a`, `/a/bc` is not.
+fn is_within(parent: &Path, child: &Path) -> bool {
+    child.starts_with(parent)
+}
+
+#[tauri::command]
+fn add_shared_folder(path: String) -> Result<Vec<SharedFolder>, String> {
+    let target = canonical_folder(&path)?;
+    let mut folders = read_shared_folders();
+
+    for existing in &folders {
+        // Already covered by a broader grant, or granted exactly.
+        if let Ok(existing_path) = fs::canonicalize(existing) {
+            if is_within(&existing_path, &target) {
+                return Ok(shared_folders());
+            }
+        }
+    }
+
+    // Drop narrower grants that the new one now covers, so one folder does not
+    // appear twice in the list.
+    folders.retain(|existing| match fs::canonicalize(existing) {
+        Ok(existing_path) => !is_within(&target, &existing_path),
+        Err(_) => true,
+    });
+
+    folders.push(target.to_string_lossy().into_owned());
+    write_shared_folders(&folders)?;
+    Ok(shared_folders())
+}
+
+#[tauri::command]
+fn remove_shared_folder(path: String) -> Result<Vec<SharedFolder>, String> {
+    let notes = fs::canonicalize(notes_dir()).ok();
+    let target = fs::canonicalize(&path).ok();
+
+    if let (Some(notes), Some(target)) = (&notes, &target) {
+        if notes == target {
+            return Err("the notes folder is always shared".into());
+        }
+    }
+
+    let folders: Vec<String> = read_shared_folders()
+        .into_iter()
+        .filter(|existing| match (fs::canonicalize(existing).ok(), &target) {
+            (Some(existing_path), Some(target)) => existing_path != *target,
+            _ => existing != &path,
+        })
+        .collect();
+
+    write_shared_folders(&folders)?;
+    Ok(shared_folders())
+}
+
 #[tauri::command]
 fn pending_approvals() -> Vec<Value> {
     let dir = pending_dir();
@@ -624,7 +805,10 @@ pub fn run() {
             pending_approvals,
             answer_approval,
             audit_log,
-            list_notes
+            list_notes,
+            shared_folders,
+            add_shared_folder,
+            remove_shared_folder
         ])
         .setup(|app| {
             let mut status = HotkeyStatus::pending();
@@ -784,5 +968,85 @@ mod tests {
                 "{url} should be rejected"
             );
         }
+    }
+
+    // -- folder access ------------------------------------------------------
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("pip-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("scratch dir");
+        dir
+    }
+
+    #[test]
+    fn the_allowlist_file_round_trips() {
+        let dir = scratch("allowlist");
+        let file = dir.join("allowlist.json");
+
+        assert!(read_shared_folders_from(&file).is_empty(), "no file yet");
+
+        let folders = vec![dir.to_string_lossy().into_owned()];
+        write_shared_folders_to(&file, &folders).expect("write");
+        assert_eq!(read_shared_folders_from(&file), folders);
+
+        // The list says which of the user's folders may be read, so it is
+        // owner-only like the token.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&file).expect("metadata").permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "allowlist should not be world readable");
+        }
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_broken_allowlist_reads_as_empty() {
+        let dir = scratch("broken");
+        let file = dir.join("allowlist.json");
+        fs::write(&file, "{ this is not json").expect("write");
+
+        assert!(
+            read_shared_folders_from(&file).is_empty(),
+            "a corrupt file must fail closed, not guess"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn granting_a_file_instead_of_a_folder_is_refused() {
+        let dir = scratch("file-grant");
+        let file = dir.join("notes.txt");
+        fs::write(&file, "x").expect("write");
+
+        let error = canonical_folder(&file.to_string_lossy()).expect_err("a file is not a folder");
+        assert!(error.contains("not a folder"), "got: {error}");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn granting_a_folder_that_does_not_exist_is_refused() {
+        let error = canonical_folder("/nope/not/here").expect_err("missing folder");
+        assert!(error.contains("no such folder"), "got: {error}");
+    }
+
+    #[test]
+    fn containment_is_component_wise() {
+        let parent = Path::new("/a/b");
+        assert!(is_within(parent, Path::new("/a/b")), "a folder contains itself");
+        assert!(is_within(parent, Path::new("/a/b/c.pdf")));
+        assert!(!is_within(parent, Path::new("/a/bc/d.pdf")), "prefix is not containment");
+        assert!(!is_within(parent, Path::new("/a")));
+    }
+
+    #[test]
+    fn the_notes_folder_is_always_listed_first() {
+        let folders = shared_folders();
+        assert!(!folders.is_empty(), "notes should always be present");
+        assert!(folders[0].always, "notes should be first and marked always");
     }
 }

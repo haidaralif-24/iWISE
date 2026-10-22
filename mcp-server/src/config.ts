@@ -89,10 +89,56 @@ export const PENDING_DIR = path.join(STATE_DIR, "pending");
 export const DECISIONS_DIR = path.join(STATE_DIR, "decisions");
 
 /**
+ * The folders the user has granted, one at a time, from the Pip window. The app
+ * is the only writer; the server reads it on every tool call, so a change takes
+ * effect without a restart.
+ */
+export const ALLOWLIST_FILE = path.join(STATE_DIR, "allowlist.json");
+
+export type AllowlistFile = { folders: string[] };
+
+function readAllowlistFile(): string[] {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(ALLOWLIST_FILE, "utf8");
+  } catch {
+    // No file yet: the user has not granted anything. That is not an error.
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<AllowlistFile>;
+    if (!Array.isArray(parsed.folders)) throw new Error("`folders` is not an array");
+    return parsed.folders.filter(
+      (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+    );
+  } catch (error) {
+    // Fail closed: an unreadable allowlist shares nothing beyond the notes
+    // folder, rather than guessing at what the user meant.
+    console.error(
+      "[pip-mcp] allowlist.json is unreadable; sharing the notes folder only:",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
+}
+
+function expandHome(entry: string): string {
+  const trimmed = entry.trim();
+  const expanded = trimmed.startsWith("~")
+    ? path.join(process.env.HOME ?? os.homedir(), trimmed.slice(1))
+    : trimmed;
+  return path.resolve(expanded);
+}
+
+/**
  * The allowlist. Every path a tool touches has to land inside one of these.
  *
- * Default is the notes folder plus the two places people actually keep study
- * material. `PIP_ALLOWED_FOLDERS` (colon separated) overrides it entirely.
+ * Order: `PIP_ALLOWED_FOLDERS` (colon separated, for tests and CI) wins;
+ * otherwise the folders granted in `allowlist.json` plus the notes folder,
+ * which is always shared because `create_note` writes there.
+ *
+ * Nothing else is implicit. The AI can read exactly what the user added.
  */
 export function allowedFolders(): string[] {
   const configured = process.env.PIP_ALLOWED_FOLDERS;
@@ -104,7 +150,21 @@ export function allowedFolders(): string[] {
       .map((entry) => path.resolve(entry));
   }
 
-  return [NOTES_DIR, path.join(os.homedir(), "Documents"), path.join(os.homedir(), "Desktop")];
+  const folders = new Set<string>([path.resolve(NOTES_DIR)]);
+
+  for (const entry of readAllowlistFile()) {
+    const absolute = expandHome(entry);
+    try {
+      // A folder can be deleted or unmounted after it was granted; skip it
+      // rather than failing every call.
+      if (!fs.statSync(absolute).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    folders.add(absolute);
+  }
+
+  return [...folders];
 }
 
 /** How many characters of document text a single tool call may return. */
