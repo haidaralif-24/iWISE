@@ -255,8 +255,18 @@ def main() -> int:
             import pypdf
 
             total_pages = len(pypdf.PdfReader(str(path)).pages)
-        except Exception:  # noqa: BLE001
+        except Exception as err:  # noqa: BLE001
             total_pages = 0
+            # This used to be a bare `total_pages = 0`. pypdf was listed in
+            # requirements.txt but missing from the venv, so every PDF reported
+            # zero pages and the page selector silently did nothing — which is
+            # the feature the token saving depends on. Say so instead.
+            print(
+                f"warning: could not count PDF pages ({err}); page selection unavailable",
+                file=sys.stderr,
+            )
+            if pages_spec:
+                return die("--pages was requested but this PDF's page count could not be read", 3)
 
         if total_pages:
             try:
