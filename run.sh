@@ -52,10 +52,49 @@ done
 # --------------------------------------------------------------------------
 # The tunnel. Only needed for the cloud chat connector.
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# The tunnel. Only needed for the cloud chat connector.
+#
+# ngrok is the intended tunnel: with an account it gives a stable hostname, so
+# a connector configured once keeps working. cloudflared remains as a fallback
+# because it needs no account, but its hostname changes on every launch.
+# --------------------------------------------------------------------------
+
+print_connector() {
+  local host=""
+  for _ in $(seq 1 40); do
+    host="$(curl -s --noproxy '*' http://127.0.0.1:4040/api/tunnels 2>/dev/null \
+      | sed -n 's/.*"public_url":"\(https[^"]*\)".*/\1/p' | head -1)"
+    if [ -n "$host" ]; then break; fi
+    sleep 0.25
+  done
+
+  local token="${PIP_MCP_TOKEN:-}"
+  local state="${PIP_STATE_DIR:-$HOME/.pip}"
+  if [ -z "$token" ] && [ -f "$state/token" ]; then
+    token="$(tr -d '\n' < "$state/token")"
+  fi
+
+  echo
+  if [ -z "$host" ]; then
+    echo "could not read the tunnel URL — check http://127.0.0.1:4040" >&2
+    return
+  fi
+
+  echo "connector URL:"
+  echo "  ${host}/mcp"
+  if [ -n "$token" ]; then
+    echo "  Authorization: Bearer ${token}"
+  fi
+  if [ "${PIP_ALLOW_QUERY_TOKEN:-}" = "1" ]; then
+    echo "  or as one URL: ${host}/mcp?token=${token}"
+  else
+    echo "  (a client that cannot send headers needs PIP_ALLOW_QUERY_TOKEN=1)"
+  fi
+  echo
+}
+
 if [ "$WITH_TUNNEL" = "1" ]; then
-  # ngrok gives a stable hostname, but only with an account. cloudflared needs
-  # no account but the hostname changes every time. Prefer ngrok when it is
-  # set up, fall back to cloudflared when it is not.
   # The config lives in different places per platform, and a Homebrew install is
   # just as good as a vendored copy, so check both before giving up.
   NGROK_CONFIG=""
@@ -77,17 +116,21 @@ if [ "$WITH_TUNNEL" = "1" ]; then
   done
 
   if [ -n "$NGROK_BIN" ] && [ -n "$NGROK_CONFIG" ]; then
-    echo "starting the ngrok tunnel (stable hostname)…"
+    echo "starting the ngrok tunnel…"
     env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
       "$NGROK_BIN" http 8787 --log=stdout &
     PIDS+=($!)
+    print_connector
   elif [ -n "$CF_BIN" ]; then
-    echo "starting the cloudflared tunnel (no account needed, hostname changes)…"
+    echo "ngrok is not configured; falling back to cloudflared." >&2
+    echo "its hostname changes every launch, so the connector must be updated each time." >&2
     env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
       "$CF_BIN" tunnel --url http://127.0.0.1:8787 --no-autoupdate &
     PIDS+=($!)
+    echo "the public URL is in the cloudflared output above."
   else
-    echo "no tunnel binary found — run ./setup.sh, or install ngrok or cloudflared" >&2
+    echo "ngrok is not installed or has no authtoken." >&2
+    echo "install it and run: ngrok config add-authtoken <token>" >&2
   fi
 fi
 
