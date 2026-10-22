@@ -39,8 +39,11 @@ cd mcp-server && PIP_MCP_TOKEN=... npm run dev   # the tool server on 127.0.0.1:
 `PIP_MCP_TOKEN` is optional. If you set it, it must be at least 16 characters and it wins over
 everything else. If you don't, the server generates one on first run and saves it to
 `~/.pip/token` (mode 0600) — the same token is reused on every later run, so a connector configured
-once keeps working. It is also written to `~/.pip/control.json` so the app can read it, and printed
-on boot so you can paste it into a connector.
+once keeps working. It is printed on boot so you can paste it into a connector.
+
+The app never needs the token: it talks to the server through `~/.pip/pending` and
+`~/.pip/decisions`, not over HTTP. The server also writes `~/.pip/control.json` (0600) containing the
+token, but nothing reads it today — it is left over from the design where the app connected directly.
 
 The connector URL is `https://<tunnel-host>/mcp` with an `Authorization: Bearer <token>` header. If
 your connector UI cannot send headers, start the server with `PIP_ALLOW_QUERY_TOKEN=1` and use
