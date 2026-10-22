@@ -4,8 +4,13 @@
 # the approval round trip, and the audit log.
 set -uo pipefail
 
+# Every request here goes to loopback. If HTTP_PROXY is set, curl sends them to
+# the proxy instead and they fail with 502, which looks like a server fault.
+export no_proxy="127.0.0.1,localhost"
+export NO_PROXY="$no_proxy"
+
 BASE="${PIP_MCP_BASE:-http://127.0.0.1:8787}"
-TOKEN="${PIP_MCP_TOKEN:-testtoken123}"
+TOKEN="${PIP_MCP_TOKEN:-testtoken-1234567890}"
 STATE_DIR="${PIP_STATE_DIR:-$HOME/.pip}"
 NOTES_DIR="${PIP_NOTES_DIR:-$STATE_DIR/notes}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,7 +54,7 @@ echo
 echo "== 3. allowlist: outside path is refused =="
 OUT=$(call '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_files","arguments":{"folder":"/etc"}}}' | strip)
 expect_contains "$OUT" "Not allowed" "list_files refuses /etc"
-expect_contains "$OUT" "outside the allowed folders" "refusal explains why"
+expect_contains "$OUT" "outside the folders the user shared" "refusal explains why"
 
 echo
 echo "== 4. allowlist: traversal and symlink tricks are refused =="

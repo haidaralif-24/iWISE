@@ -12,6 +12,11 @@ cd "$(dirname "$0")"
 
 export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
+# Loopback requests must not go through a proxy, or the readiness checks below
+# fail with 502 on a machine that has HTTP_PROXY set.
+export no_proxy="127.0.0.1,localhost"
+export NO_PROXY="$no_proxy"
+
 FAILED=0
 
 section() { printf '\n\033[1;36m== %s\033[0m\n' "$1"; }
@@ -60,10 +65,15 @@ section "MCP server — tool layer"
 TEST_PORT="${PIP_TEST_PORT:-8788}"
 TEST_STATE="$(mktemp -d)"
 export PIP_MCP_PORT="$TEST_PORT"
-export PIP_MCP_TOKEN=testtoken123
+export PIP_MCP_TOKEN=testtoken-1234567890
 export PIP_STATE_DIR="$TEST_STATE"
 export PIP_NOTES_DIR="$TEST_STATE/notes"
 export PIP_MCP_BASE="http://127.0.0.1:$TEST_PORT"
+
+# Declare the allowlist explicitly. The tests used to pass without this because
+# the default shared all of ~/Documents, which is where this repository lives —
+# so they were riding on the very default that has now been removed.
+export PIP_ALLOWED_FOLDERS="$(pwd)/tests/samples"
 
 (cd mcp-server && npm run dev >/tmp/pip-test-mcp.log 2>&1 &)
 

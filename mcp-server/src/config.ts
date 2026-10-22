@@ -141,16 +141,19 @@ function expandHome(entry: string): string {
  * Nothing else is implicit. The AI can read exactly what the user added.
  */
 export function allowedFolders(): string[] {
+  // The notes folder is always shared, in every mode, because `create_note`
+  // writes there and `search_notes` reads it. It used to be dropped whenever
+  // PIP_ALLOWED_FOLDERS was set, which silently broke both tools.
+  const folders = new Set<string>([path.resolve(NOTES_DIR)]);
+
   const configured = process.env.PIP_ALLOWED_FOLDERS;
   if (configured) {
-    return configured
-      .split(path.delimiter)
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .map((entry) => path.resolve(entry));
+    for (const entry of configured.split(path.delimiter)) {
+      const trimmed = entry.trim();
+      if (trimmed) folders.add(path.resolve(trimmed));
+    }
+    return [...folders];
   }
-
-  const folders = new Set<string>([path.resolve(NOTES_DIR)]);
 
   for (const entry of readAllowlistFile()) {
     const absolute = expandHome(entry);
