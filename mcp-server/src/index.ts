@@ -23,15 +23,18 @@ import {
   HOST,
   PORT,
   TOKEN,
-  assertUsableToken,
+  TOKEN_FILE,
+  TOKEN_SOURCE,
+  resolveToken,
   writeControlFile,
 } from "./config.js";
 import { registerTools, describeAllowlist } from "./tools.js";
 
-// Refuse to start without a real token. Serving files to an unauthenticated
-// caller is worse than not starting.
+// A short explicit token is a configuration error and stops the server. An
+// unset one is not: a token is generated and saved, so the same value is reused
+// on every later run.
 try {
-  assertUsableToken();
+  resolveToken();
 } catch (error) {
   console.error(`[pip-mcp] ${error instanceof Error ? error.message : "invalid PIP_MCP_TOKEN"}`);
   process.exit(1);
@@ -222,7 +225,10 @@ httpServer.listen(PORT, HOST, () => {
 
   console.log(`[pip-mcp] listening on http://${HOST}:${PORT}/mcp`);
   console.log(`[pip-mcp] health    http://${HOST}:${PORT}/health`);
-  console.log(`[pip-mcp] token     ${TOKEN}`);
+  console.log(`[pip-mcp] token     ${TOKEN}  (${TOKEN_SOURCE})`);
+  if (TOKEN_SOURCE !== "env") {
+    console.log(`[pip-mcp] saved at  ${TOKEN_FILE} — reused on the next run`);
+  }
   console.log("[pip-mcp] allowed folders:");
   console.log(`  ${describeAllowlist()}`);
   console.log("[pip-mcp] connector URL, pick whichever your client supports:");

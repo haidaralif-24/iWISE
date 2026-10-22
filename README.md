@@ -36,9 +36,11 @@ cd app && npm run tauri dev                      # the window
 cd mcp-server && PIP_MCP_TOKEN=... npm run dev   # the tool server on 127.0.0.1:8787
 ```
 
-`PIP_MCP_TOKEN` is **required** and must be at least 16 characters — the server exits rather than
-serve files unauthenticated. It is written to `~/.pip/control.json` (mode 0600) so the app can read
-it, and printed on boot so you can paste it into a connector.
+`PIP_MCP_TOKEN` is optional. If you set it, it must be at least 16 characters and it wins over
+everything else. If you don't, the server generates one on first run and saves it to
+`~/.pip/token` (mode 0600) — the same token is reused on every later run, so a connector configured
+once keeps working. It is also written to `~/.pip/control.json` so the app can read it, and printed
+on boot so you can paste it into a connector.
 
 The connector URL is `https://<tunnel-host>/mcp` with an `Authorization: Bearer <token>` header. If
 your connector UI cannot send headers, start the server with `PIP_ALLOW_QUERY_TOKEN=1` and use

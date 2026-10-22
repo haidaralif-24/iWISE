@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -5,32 +6,58 @@ import path from "node:path";
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.PIP_MCP_PORT ?? 8787);
 
+export const MIN_TOKEN_LENGTH = 16;
+
 /**
  * The bearer token.
  *
- * It must be set explicitly. `?? randomBytes(...)` looked helpful but was a
- * dead end: the generated value is written to the control file before anyone
- * can copy it into a connector, so the only way to use it was to read it out of
- * a file. Worse, `PIP_MCP_TOKEN=""` is not nullish, so the token became the
- * empty string — and an empty token compares equal to a missing Authorization
- * header, which authorised every request.
+ * Resolution order:
+ *   1. `PIP_MCP_TOKEN`, if it is set to something
+ *   2. the token saved by a previous run (`<state>/token`)
+ *   3. a freshly generated token, saved so later runs reuse it
+ *
+ * Two failure modes are deliberately avoided. An empty value must never be
+ * treated as a token: it compares equal to a missing Authorization header and
+ * would authorise every request. And a generated token must be both saved and
+ * printed, because a secret nobody can read is not a usable credential — that
+ * was the flaw in the original `?? randomBytes(...)` fallback.
  */
-const CONFIGURED_TOKEN = (process.env.PIP_MCP_TOKEN ?? "").trim();
-export const TOKEN = CONFIGURED_TOKEN;
+export let TOKEN = (process.env.PIP_MCP_TOKEN ?? "").trim();
+export let TOKEN_SOURCE: "env" | "file" | "generated" = "env";
 
-export const MIN_TOKEN_LENGTH = 16;
-
-/** Called before the server starts listening; throws rather than serving files unauthenticated. */
-export function assertUsableToken(): void {
-  if (TOKEN.length === 0) {
-    throw new Error(
-      "PIP_MCP_TOKEN is unset or empty. This server reads files, so it will not run unauthenticated. " +
-        "Set it to a long random value, for example: openssl rand -hex 32",
-    );
+/** Called once before the server listens. Throws only if an explicit token is unusable. */
+export function resolveToken(): void {
+  if (TOKEN.length > 0) {
+    if (TOKEN.length < MIN_TOKEN_LENGTH) {
+      throw new Error(
+        `PIP_MCP_TOKEN is shorter than ${MIN_TOKEN_LENGTH} characters. Use a long random value, or unset it to have one generated.`,
+      );
+    }
+    TOKEN_SOURCE = "env";
+    return;
   }
-  if (TOKEN.length < MIN_TOKEN_LENGTH) {
-    throw new Error(
-      `PIP_MCP_TOKEN is shorter than ${MIN_TOKEN_LENGTH} characters. Use a long random value.`,
+
+  try {
+    const saved = fs.readFileSync(TOKEN_FILE, "utf8").trim();
+    if (saved.length >= MIN_TOKEN_LENGTH) {
+      TOKEN = saved;
+      TOKEN_SOURCE = "file";
+      return;
+    }
+  } catch {
+    // No saved token yet — create one below.
+  }
+
+  TOKEN = randomBytes(32).toString("hex");
+  TOKEN_SOURCE = "generated";
+
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(TOKEN_FILE, `${TOKEN}\n`, { mode: 0o600 });
+  } catch (error) {
+    console.error(
+      "[pip-mcp] could not save the generated token; it will change on the next run:",
+      error instanceof Error ? error.message : error,
     );
   }
 }
@@ -48,6 +75,7 @@ export const ALLOW_QUERY_TOKEN = process.env.PIP_ALLOW_QUERY_TOKEN === "1";
  */
 export const STATE_DIR = process.env.PIP_STATE_DIR ?? path.join(os.homedir(), ".pip");
 export const CONTROL_FILE = path.join(STATE_DIR, "control.json");
+export const TOKEN_FILE = path.join(STATE_DIR, "token");
 export const AUDIT_FILE = path.join(STATE_DIR, "audit.log");
 export const NOTES_DIR = process.env.PIP_NOTES_DIR ?? path.join(STATE_DIR, "notes");
 

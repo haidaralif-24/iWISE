@@ -122,7 +122,7 @@ Rewritten from zero, ~120 lines, one file:
 - `@modelcontextprotocol/server@2.3.1` only; the v1 `sdk` package was removed (94 packages pruned).
 - `createMcpHandler(() => buildServer())` + a small `node:http` adapter that converts the request to a web `Request` and the reply back. No express, no extra dependencies.
 - Streamable HTTP at `POST /mcp`. Bound to `127.0.0.1`, port 8787.
-- Bearer token **required** — `PIP_MCP_TOKEN`, at least 16 characters, or the server refuses to start. (An empty value used to authorise every request; see the 2026-10-22 entry.) No Origin check: the tunneled client is a backend, not a browser, so there is no Origin header to validate — the token is the control.
+- Bearer token: `PIP_MCP_TOKEN` if set (minimum 16 characters), otherwise one is generated on first run and saved to `~/.pip/token` (0600), so it survives restarts. (An empty value used to authorise every request; see the 2026-10-22 entry.) No Origin check: the tunneled client is a backend, not a browser, so there is no Origin header to validate — the token is the control.
 - **Two ways to present the token**, because connector UIs differ: `Authorization: Bearer <token>` header, or `?token=<token>` on the `/mcp` URL. Compared with `timingSafeEqual`. The model is never told the token — the MCP client attaches it, which is a connector setting, not a prompt.
 - `GET /health` returns `ok`, so a tunnel can be checked without speaking MCP.
 
