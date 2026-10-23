@@ -16,8 +16,10 @@ export type ConvertResult = {
 
 export type SidecarStatus = {
   ready: boolean;
-  python: string;
-  script: string;
+  /** "bundled" for a shipped helper, "script" for a development checkout. */
+  kind: string;
+  program: string;
+  target: string;
   detail: string;
 };
 

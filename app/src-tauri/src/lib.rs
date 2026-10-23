@@ -196,8 +196,12 @@ pub struct ConvertResult {
 #[serde(rename_all = "camelCase")]
 pub struct SidecarStatus {
     ready: bool,
-    python: String,
-    script: String,
+    /// "bundled" for a shipped helper, "script" for a development checkout.
+    kind: String,
+    /// The executable that gets spawned.
+    program: String,
+    /// The helper binary, or convert.py in a checkout.
+    target: String,
     detail: String,
 }
 
@@ -244,43 +248,155 @@ fn python_executable(repo_root: Option<&Path>) -> String {
     }
 }
 
-fn sidecar_script(repo_root: Option<&Path>) -> Option<PathBuf> {
-    if let Ok(configured) = std::env::var("PIP_CONVERT_SCRIPT") {
-        let path = PathBuf::from(configured);
-        if path.exists() {
-            return Some(path);
+/// Where the converter comes from.
+///
+/// A shipped app carries a self-contained helper inside `Contents/Resources`
+/// and has neither a Python interpreter nor a repository, so the old
+/// "walk up from the working directory until convert.py appears" lookup could
+/// never succeed there: launched from Finder, the working directory is `/`.
+///
+/// A development checkout still runs `convert.py` with the sidecar venv.
+#[derive(Clone, Debug)]
+enum Converter {
+    /// Self-contained executable (PyInstaller): run it directly.
+    Helper { binary: PathBuf },
+    /// Development checkout: run the script with a Python interpreter.
+    Script { python: String, script: PathBuf },
+}
+
+impl Converter {
+    fn program(&self) -> String {
+        match self {
+            Converter::Helper { binary } => binary.to_string_lossy().into_owned(),
+            Converter::Script { python, .. } => python.clone(),
         }
     }
 
-    repo_root.map(|root| root.join("sidecars/markitdown/convert.py"))
+    /// Arguments that come before the document path.
+    fn leading_args(&self) -> Vec<String> {
+        match self {
+            Converter::Helper { .. } => Vec::new(),
+            Converter::Script { script, .. } => vec![script.to_string_lossy().into_owned()],
+        }
+    }
+
+    fn target(&self) -> String {
+        match self {
+            Converter::Helper { binary } => binary.to_string_lossy().into_owned(),
+            Converter::Script { script, .. } => script.to_string_lossy().into_owned(),
+        }
+    }
+
+    fn kind(&self) -> &'static str {
+        match self {
+            Converter::Helper { .. } => "bundled",
+            Converter::Script { .. } => "script",
+        }
+    }
+
+    fn exists(&self) -> bool {
+        Path::new(&self.target()).exists()
+    }
+}
+
+/// The helper binary inside a Resources directory, if present.
+fn helper_in(dir: &Path) -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "markitdown-helper.exe"
+    } else {
+        "markitdown-helper"
+    };
+
+    // Tauri v2 copies `resources` entries to Contents/Resources on macOS, but a
+    // glob entry keeps its folder, so check a nested copy as well.
+    for candidate in [dir.join(name), dir.join("resources").join(name)] {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+/// The helper bundled next to the app, if this is a shipped build.
+fn bundled_helper(app: Option<&AppHandle>) -> Option<PathBuf> {
+    let dir = app?.path().resource_dir().ok()?;
+    helper_in(&dir)
+}
+
+/// Resolution order: explicit override, bundled helper, development checkout.
+///
+/// Split from `resolve_converter` so the order can be tested without a running
+/// app: the bundled path is the one that only exists in a shipped build.
+fn resolve_converter_from(resources: Option<&Path>) -> Option<Converter> {
+    if let Ok(configured) = std::env::var("PIP_CONVERT_SCRIPT") {
+        let script = PathBuf::from(configured.trim());
+        if script.exists() {
+            let root = find_repo_root();
+            return Some(Converter::Script {
+                python: python_executable(root.as_deref()),
+                script,
+            });
+        }
+    }
+
+    if let Some(dir) = resources {
+        if let Some(binary) = helper_in(dir) {
+            return Some(Converter::Helper { binary });
+        }
+    }
+
+    let root = find_repo_root()?;
+    let script = root.join("sidecars/markitdown/convert.py");
+    if !script.exists() {
+        return None;
+    }
+
+    Some(Converter::Script {
+        python: python_executable(Some(&root)),
+        script,
+    })
+}
+
+fn resolve_converter(app: Option<&AppHandle>) -> Option<Converter> {
+    let resources = app.and_then(|handle| handle.path().resource_dir().ok());
+    resolve_converter_from(resources.as_deref())
 }
 
 #[tauri::command]
-fn sidecar_status() -> SidecarStatus {
-    let root = find_repo_root();
-    let script = sidecar_script(root.as_deref());
-    let python = python_executable(root.as_deref());
+fn sidecar_status(app: AppHandle) -> SidecarStatus {
+    let converter = resolve_converter(Some(&app));
 
-    let script_path = script
-        .as_ref()
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "not found".into());
+    let Some(converter) = converter else {
+        return SidecarStatus {
+            ready: false,
+            kind: "missing".into(),
+            program: "not found".into(),
+            target: "not found".into(),
+            detail: "The converter is missing from this build. Reinstall Pip, or set PIP_CONVERT_SCRIPT."
+                .into(),
+        };
+    };
 
-    let ready = script.as_ref().map(|path| path.exists()).unwrap_or(false);
-
+    let ready = converter.exists();
     let detail = if !ready {
-        "convert.py was not found. Run the app from the repository, or set PIP_CONVERT_SCRIPT."
-    } else if !Path::new(&python).exists() && python.contains('/') {
-        "the Python environment is missing. Run: uv venv sidecars/markitdown/.venv && uv pip install -r sidecars/markitdown/requirements.txt"
+        format!("The converter is missing at {}", converter.target())
+    } else if let Converter::Script { python, .. } = &converter {
+        if python.contains('/') && !Path::new(python).exists() {
+            "the Python environment is missing. Run: uv venv sidecars/markitdown/.venv && uv pip install -r sidecars/markitdown/requirements.txt".into()
+        } else {
+            "ready".into()
+        }
     } else {
-        "ready"
+        "ready".into()
     };
 
     SidecarStatus {
         ready,
-        python,
-        script: script_path,
-        detail: detail.into(),
+        kind: converter.kind().into(),
+        program: converter.program(),
+        target: converter.target(),
+        detail,
     }
 }
 
@@ -297,33 +413,30 @@ fn text(value: &Value, key: &str) -> String {
 }
 
 /// Runs the converter and parses its JSON envelope.
-fn convert_blocking(path: String, pages: Option<String>) -> Result<ConvertResult, String> {
-    let root = find_repo_root();
-    let script = sidecar_script(root.as_deref()).ok_or(
-        "convert.py was not found. Run the app from the repository, or set PIP_CONVERT_SCRIPT.",
-    )?;
-
-    if !script.exists() {
-        return Err(format!("convert.py is missing at {}", script.display()));
+fn convert_blocking(
+    converter: &Converter,
+    path: String,
+    pages: Option<String>,
+) -> Result<ConvertResult, String> {
+    if !converter.exists() {
+        return Err(format!("the converter is missing at {}", converter.target()));
     }
 
-    let python = python_executable(root.as_deref());
-    let mut args: Vec<String> = vec![
-        script.to_string_lossy().into_owned(),
-        path,
-        "--json".into(),
-    ];
+    let program = converter.program();
+    let mut args: Vec<String> = converter.leading_args();
+    args.push(path);
+    args.push("--json".into());
     if let Some(pages) = pages.filter(|value| !value.trim().is_empty()) {
         args.push("--pages".into());
         args.push(pages);
     }
 
-    let mut child = Command::new(&python)
+    let mut child = Command::new(&program)
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|err| format!("could not run {python}: {err}"))?;
+        .map_err(|err| format!("could not run {program}: {err}"))?;
 
     // Drain both pipes on their own threads, otherwise a large document fills
     // the pipe buffer and the child blocks forever.
@@ -409,10 +522,19 @@ fn convert_blocking(path: String, pages: Option<String>) -> Result<ConvertResult
 }
 
 #[tauri::command]
-async fn convert_document(path: String, pages: Option<String>) -> Result<ConvertResult, String> {
+async fn convert_document(
+    app: AppHandle,
+    path: String,
+    pages: Option<String>,
+) -> Result<ConvertResult, String> {
+    // Resolved on the command thread, where the app handle is available, so a
+    // shipped build finds the bundled helper instead of looking for a repo.
+    let converter = resolve_converter(Some(&app))
+        .ok_or("the converter is missing from this build. Reinstall Pip, or set PIP_CONVERT_SCRIPT.")?;
+
     // The conversion blocks for as long as the document takes, so it runs on a
     // worker thread rather than the UI thread.
-    tauri::async_runtime::spawn_blocking(move || convert_blocking(path, pages))
+    tauri::async_runtime::spawn_blocking(move || convert_blocking(&converter, path, pages))
         .await
         .map_err(|err| format!("conversion task failed: {err}"))?
 }
@@ -829,8 +951,11 @@ pub fn run() {
                 Some(err) => eprintln!("[pip] hotkey {} FAILED: {err}", status.hotkey),
             }
 
-            let sidecar = sidecar_status();
-            eprintln!("[pip] converter: {} ({})", sidecar.script, sidecar.detail);
+            let sidecar = sidecar_status(app.handle().clone());
+            eprintln!(
+                "[pip] converter ({}): {} — {}",
+                sidecar.kind, sidecar.target, sidecar.detail
+            );
 
             app.manage(Mutex::new(status));
             Ok(())
@@ -859,23 +984,33 @@ mod tests {
             .into_owned()
     }
 
+    /// In a checkout there is no app handle, so resolution falls through to the
+    /// repository lookup — which is the path a developer actually uses.
+    fn converter() -> Converter {
+        resolve_converter(None).expect("a converter should be resolvable from the repository")
+    }
+
     #[test]
     fn finds_the_repository_root_and_the_sidecar() {
         let root = find_repo_root().expect("repo root");
         assert!(root.join("sidecars/markitdown/convert.py").exists());
-        assert!(sidecar_script(Some(&root)).is_some());
+
+        let resolved = converter();
+        assert_eq!(resolved.kind(), "script", "a checkout resolves to the script");
+        assert!(resolved.exists());
     }
 
     #[test]
-    fn sidecar_status_is_ready() {
-        let status = sidecar_status();
-        assert!(status.ready, "sidecar should be ready: {}", status.detail);
-        assert!(status.python.contains("python"), "python: {}", status.python);
+    fn the_converter_is_ready() {
+        let resolved = converter();
+        assert!(resolved.exists(), "converter at {}", resolved.target());
+        assert!(resolved.program().contains("python"), "program: {}", resolved.program());
     }
 
     #[test]
     fn converts_a_document_to_markdown() {
-        let result = convert_blocking(sample("Activity_1.docx"), None).expect("conversion");
+        let result = convert_blocking(&converter(), sample("Activity_1.docx"), None)
+            .expect("conversion");
         assert_eq!(result.extension, ".docx");
         assert!(!result.markdown.is_empty());
         assert!(result.markdown_tokens > 0);
@@ -884,20 +1019,22 @@ mod tests {
 
     #[test]
     fn rejects_a_file_that_does_not_exist() {
-        let error =
-            convert_blocking("/nope/does-not-exist.pdf".to_string(), None).expect_err("should fail");
+        let error = convert_blocking(&converter(), "/nope/does-not-exist.pdf".to_string(), None)
+            .expect_err("should fail");
         assert!(error.contains("no such file"), "got: {error}");
     }
 
     #[test]
     fn selecting_pages_cuts_the_token_count() {
         let whole = convert_blocking(
+            &converter(),
             sample("Assignment_1._IB_Physics_Buoyancy_Haidar_Worksheet_Term_2__25_26_.pdf"),
             None,
         )
         .expect("whole document");
 
         let part = convert_blocking(
+            &converter(),
             sample("Assignment_1._IB_Physics_Buoyancy_Haidar_Worksheet_Term_2__25_26_.pdf"),
             Some("2-3".into()),
         )
@@ -1041,6 +1178,35 @@ mod tests {
         assert!(is_within(parent, Path::new("/a/b/c.pdf")));
         assert!(!is_within(parent, Path::new("/a/bc/d.pdf")), "prefix is not containment");
         assert!(!is_within(parent, Path::new("/a")));
+    }
+
+    #[test]
+    fn a_bundled_helper_wins_over_the_repository() {
+        let dir = scratch("bundle");
+        let helper = dir.join(if cfg!(windows) {
+            "markitdown-helper.exe"
+        } else {
+            "markitdown-helper"
+        });
+        fs::write(&helper, b"#!/bin/sh\n").expect("write helper");
+
+        let resolved = resolve_converter_from(Some(&dir)).expect("a bundled converter");
+        assert_eq!(resolved.kind(), "bundled", "a shipped build must use the helper");
+        assert_eq!(resolved.target(), helper.to_string_lossy());
+        assert!(resolved.leading_args().is_empty(), "the helper takes no script argument");
+        assert_eq!(resolved.program(), helper.to_string_lossy());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_empty_resources_folder_falls_through_to_the_repository() {
+        let dir = scratch("no-bundle");
+        let resolved = resolve_converter_from(Some(&dir)).expect("repository fallback");
+        assert_eq!(resolved.kind(), "script");
+        assert!(resolved.leading_args().len() == 1, "the script is passed as an argument");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

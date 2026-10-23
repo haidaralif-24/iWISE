@@ -154,11 +154,35 @@ Result: `./test.sh` → **exit 0**, 13 Rust tests, 9 bridge tests, all tool-laye
 
 | Issue | Notes |
 |---|---|
+| Not distributable yet | See the packaging note below |
 | Tiers 2 and 3 arrived in one commit | Nothing was demoed in between, so the demo depends on paths nobody has watched |
 | `setup.sh` does not install `pypdf` | Works here because it was installed by hand; a fresh machine silently loses page selection |
 | `~/.pip/control.json` is written but never read | Left over from the socket design; an extra copy of the token on disk |
 | TOCTOU between `realpath` and conversion | Documented in the concept; needs OS-level isolation, not fixable in JS |
 | PR #2 open, 44 files | Adds slides, screenshots, a dev harness, and the PPTX / scanned-PDF samples that were missing |
+
+## Packaging — not distributable yet
+
+A `.app` built today opens and converts nothing. The app found its converter by walking up from the
+**working directory** looking for `sidecars/markitdown/convert.py`; launched from Finder the working
+directory is `/`, so the lookup could never succeed. The MCP server has the same problem — it only
+exists as `npm run dev` inside a checkout.
+
+**Phase 0 is done (2026-10-23).** Resolution is now: `PIP_CONVERT_SCRIPT` → a `markitdown-helper`
+binary in the app's `Contents/Resources` → the repository checkout. A bundled helper is run
+directly; a checkout still runs `convert.py` with the sidecar venv. Covered by two tests.
+
+Still needed before anyone can install it:
+
+| Phase | Work |
+|---|---|
+| 1 | Build the helper with PyInstaller and list it in `bundle.resources` |
+| 2 | Bundle the MCP server (esbuild + a `node` binary) and have the app spawn it |
+| 3 | Bundle ngrok, plus a first-run panel that takes an authtoken and shows the connector URL |
+| 4 | DMG + the signing decision |
+
+Two steps cannot be automated away: the user's own ngrok account, and adding the connector in the
+chat service.
 
 ## Who did what
 
