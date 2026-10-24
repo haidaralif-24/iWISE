@@ -24,7 +24,7 @@ Pip needs no API key and no local model. The full path from document to tool cal
 free Claude account through a public tunnel, and adversarial testing closed path traversal and
 unauthenticated access while exposing an approval bypass that a green test suite had missed. A
 separate measurement showed that conversion alone does not reduce token cost; page selection does,
-cutting a six-page PDF from 2,067 tokens to 680.
+cutting a six-page PDF from 2,067 tokens to 686.
 
 **Keywords:** AI assistant, Model Context Protocol, local tool access, permission boundary, Tauri
 

@@ -77,6 +77,7 @@ expect_contains "$OUT" "tokens" "returns a token estimate"
 
 OUT=$(call '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"'"$REPO"'/tests/samples/Assignment_1._IB_Physics_Buoyancy_Haidar_Worksheet_Term_2__25_26_.pdf","pages":"2-3"}}}' | strip)
 expect_contains "$OUT" "sent: 2, 3" "page selection is reported back"
+expect_contains "$OUT" "[p.2]" "each selected page is marked so the model can cite"
 
 echo
 echo "== 6. notes search =="

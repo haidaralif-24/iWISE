@@ -120,6 +120,11 @@ body,
   margin: 0;
 }
 
+.warn {
+  color: #e0b878;
+  margin: 0;
+}
+
 .detail {
   display: block;
   margin-top: 4px;

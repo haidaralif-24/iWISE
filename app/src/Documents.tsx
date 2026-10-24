@@ -38,6 +38,14 @@ function newId(path: string, pageSpec: string): string {
   return `${path}::${pageSpec}`;
 }
 
+/**
+ * Where a prompt stops being cheap. These are guidance, not a vendor limit:
+ * free tiers differ and none of them publishes a per-prompt cap. They are the
+ * sizes at which a prompt starts eating a useful share of the context window.
+ */
+const LARGE_PROMPT_TOKENS = 6_000;
+const HUGE_PROMPT_TOKENS = 12_000;
+
 type Props = {
   /** True while a file is hovering over the window. */
   dragging: boolean;
@@ -221,6 +229,57 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
 
   const percent = savedPercent(baseline, sending.tokens);
 
+  /**
+   * ⌘↩ puts the prompt on the clipboard. There is no button: the preview is
+   * already selectable, and a shortcut is one less thing to break.
+   *
+   * The async clipboard is not guaranteed inside a Tauri webview, so the old
+   * execCommand path is kept as a fallback. If both fail, say so plainly rather
+   * than pretending it worked.
+   */
+  const copyPrompt = useCallback(async () => {
+    const text = sending.text;
+    if (!text.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setError(null);
+      setNotice("Copied. Paste it into the chat.");
+      return;
+    } catch {
+      // Fall through to the selection-based path.
+    }
+
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      document.body.appendChild(area);
+      area.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(area);
+      if (!copied) throw new Error("the copy command was refused");
+      setError(null);
+      setNotice("Copied. Paste it into the chat.");
+    } catch {
+      setError("Could not reach the clipboard. Select the text and press ⌘C.");
+    }
+  }, [sending.text]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        void copyPrompt();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [copyPrompt]);
+
   return (
     <section className="card docs">
       <div className="timer-head">
@@ -334,7 +393,7 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       {active && !mergeAll && (
         <>
           <div className="editor-head">
-            <span className="muted">Preview — edit, then select the text and copy it</span>
+            <span className="muted">Preview — edit, then ⌘↩ to copy</span>
             <button
               className="link"
               onClick={() => updateText(active.id, tidy(active.original))}
@@ -389,6 +448,19 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
           About the same size as the raw text, but structured — which is what the model
           actually needs.
         </p>
+      )}
+
+      {sending.tokens >= LARGE_PROMPT_TOKENS && (
+        <p className={sending.tokens >= HUGE_PROMPT_TOKENS ? "bad" : "warn"}>
+          ~{formatTokens(sending.tokens)} tokens is a large prompt
+          {sending.tokens >= HUGE_PROMPT_TOKENS
+            ? " — select fewer pages, or the model spends its context on text you did not need."
+            : " — worth checking you need all of it."}
+        </p>
+      )}
+
+      {sending.parts.length > 0 && (
+        <p className="muted">⌘↩ copies the prompt, ready to paste into the chat.</p>
       )}
 
       {error && <p className="bad">{error}</p>}

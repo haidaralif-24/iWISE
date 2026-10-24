@@ -20,3 +20,4 @@ sidecars/tunnel/*.tgz
 # never commit audit logs or tokens
 audit.log
 *.token
+.workbuddy-ai

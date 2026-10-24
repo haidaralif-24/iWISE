@@ -29,15 +29,16 @@ Drag `tests/samples/Assignment_1…Buoyancy….pdf` onto the Docs tab.
 - The counter shows **three** numbers: what pasting by hand would cost, what the clean Markdown
   costs, and what you are actually sending.
 - Pick pages **2–3** with the page selector. The "you send" number drops from **2,067 tokens to
-  680**.
+  686** — and the prompt now carries `[p.2]` and `[p.3]` markers, so the model can say which page it
+  read. Six of those tokens are the markers.
 
 *Say the honest version:* "Converting to Markdown on its own does not save tokens — it is about the
 same size as the raw text, and actually slightly larger. What saves tokens is choosing the two
 pages that matter and editing out the rest. The counter is there so you can see that before you
 copy, not after."
 
-Pick a prompt template from the dropdown, edit the text if you want, then select the text in the
-preview and copy it with `Cmd+C`. Say why it is manual: *"We removed the automatic paste. It depended
+Pick a prompt template from the dropdown, edit the text if you want, then press **⌘↩** to copy the
+prompt and paste it into the chat. Say why it is manual: *"We removed the automatic paste. It depended
 on the chat site's own markup, and we could not test it without a live account — one manual paste is
 worth not having it break in front of a judge. Pip prepares the prompt; sending it stays yours."*
 
@@ -87,7 +88,7 @@ workflow handled locally."
 
 | Do not say | Say instead |
 |---|---|
-| "It saves you 67% of your tokens" | "Selecting the two pages you need cuts this document from 2,067 tokens to 680" |
+| "It saves you 67% of your tokens" | "Selecting the two pages you need cuts this document from 2,067 tokens to 686" |
 | "It converts to Markdown to save tokens" | "It converts to Markdown so the model gets structure, and the counter lets you trim before copying" |
 | "The AI can read your files" | "The AI can read files in folders you allow, and only after you approve anything it writes" |
 | "Works with scanned PDFs" | "Scanned PDFs are not tested yet — that is the next thing to build" |

@@ -247,8 +247,6 @@ def main() -> int:
     # document is used.
     selected: list[int] | None = None
     total_pages = 0
-    temp_pdf: Path | None = None
-    convert_target = path
 
     if path.suffix.lower() == ".pdf":
         try:
@@ -273,27 +271,42 @@ def main() -> int:
                 selected = parse_pages(pages_spec, total_pages)
             except ValueError as err:
                 return die(str(err), 3)
-            if selected != list(range(total_pages)):
-                try:
-                    temp_pdf = select_pdf_pages(path, selected, total_pages)
-                    convert_target = temp_pdf
-                except Exception as err:  # noqa: BLE001
-                    return die(f"could not select pages: {err}", 4)
 
     # convert_local() only ever touches the local filesystem. convert() and
     # convert_url() would happily fetch a remote URI, which is exactly what the
     # security model forbids.
     from markitdown import MarkItDown
 
-    try:
-        result = MarkItDown().convert_local(convert_target)
-    except Exception as err:  # noqa: BLE001
-        return die(f"conversion failed: {err}", 4)
-    finally:
-        if temp_pdf is not None:
-            temp_pdf.unlink(missing_ok=True)
+    converter = MarkItDown()
+    whole_document = selected is None or selected == list(range(total_pages))
 
-    markdown = normalise(result.text_content or "")
+    if whole_document:
+        try:
+            result = converter.convert_local(path)
+        except Exception as err:  # noqa: BLE001
+            return die(f"conversion failed: {err}", 4)
+        markdown = normalise(result.text_content or "")
+    else:
+        # One conversion per page, so the model can cite. Converting the whole
+        # selection in a single pass loses the page boundaries, and a marker the
+        # model can quote ("[p.3]") is the difference between "the document says"
+        # and "page 3 says".
+        chunks: list[str] = []
+        for number in selected:
+            try:
+                temp = select_pdf_pages(path, [number], total_pages)
+            except Exception as err:  # noqa: BLE001
+                return die(f"could not select page {number + 1}: {err}", 4)
+            try:
+                page = converter.convert_local(temp)
+                page_text = normalise(page.text_content or "")
+            except Exception as err:  # noqa: BLE001
+                return die(f"conversion failed on page {number + 1}: {err}", 4)
+            finally:
+                temp.unlink(missing_ok=True)
+            chunks.append(f"[p.{number + 1}]\n\n{page_text}".strip())
+        markdown = "\n\n".join(chunks)
+
     truncated = False
     if len(markdown) > MAX_MARKDOWN_CHARS:
         markdown = markdown[:MAX_MARKDOWN_CHARS]

@@ -37,7 +37,7 @@ are too narrow: the first is a vendor's problem, the second turned out to be a s
 |---|---|---|
 | **H1 — Capability** | A free-tier cloud chat account can reach a local MCP tool server and execute a tool call, with no API key, no local model and no paid plan. | **Supported.** Verified live through a public tunnel on a free account. |
 | **H2 — Boundary** | A user-controlled permission layer — folder allowlist, path canonicalisation, approval before writes, token authentication, audit log — closes the majority of the risk surface of exposing local tools to a remote model. | **Partially supported.** Path traversal and unauthenticated access were blocked; an approval bypass existed and was found by testing, not by review. |
-| **H3 — Efficiency** | Converting a document to Markdown reduces the token cost of a prompt. | **Rejected.** Conversion is token-neutral to slightly worse. Page selection is the lever: 2,067 → 680 tokens on a 6-page PDF. |
+| **H3 — Efficiency** | Converting a document to Markdown reduces the token cost of a prompt. | **Rejected.** Conversion is token-neutral to slightly worse. Page selection is the lever: 2,067 → 686 tokens on a 6-page PDF. |
 | **Engineering goal** | A document must travel from drag-and-drop to a sent prompt, and a tool call must reach an approved write, in one continuous run on the team's own laptop. | Chain verified link by link; the single continuous run had not been performed at the time of writing. |
 
 H3 was written first and is reported as rejected. The rejection is a result, not an embarrassment: it
