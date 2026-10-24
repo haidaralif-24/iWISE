@@ -27,7 +27,7 @@ Last updated: 2026-10-22.
 | | Prompt templates | Written |
 | | ~~Copy prompt to the clipboard~~ | **Removed 2026-10-24** |
 | | ~~Inject into the chat input~~ | **Removed 2026-10-24** |
-| **3** | Five MCP tools | Done, called through the public tunnel |
+| **3** | Seven MCP tools | Done, called through the public tunnel |
 | | Folder allowlist, granted in the app | Done, verified live (grant/revoke, no restart) |
 | | Confirmation before writing | Written, wired end to end |
 | | Append-only audit log + viewer | Written |
@@ -187,6 +187,29 @@ into that folder, it could plant text it would read back later. Fixed: search re
 
 That is the second time reading the code found something the tests did not. The first was the empty
 token. Both are in the research plan as evidence for the secondary question.
+
+### Day 5, later still — artifacts: the model sends structure, the server renders
+
+Two tools, `save_digest` and `save_quiz`. The model returns JSON — file lines for a digest, questions
+and options for a quiz — and the server renders the page. It never writes HTML.
+
+That is deliberate, for two reasons. **Tokens:** a ten-question quiz is roughly 700 tokens of JSON
+against 2,500 of hand-written HTML, so the saving is real and it is the same principle as page
+selection, applied to output rather than input. **Correctness:** the template lives in one place, so
+the page that lands on disk is always valid, and one mis-substituted placeholder cannot produce broken
+markup.
+
+Every interpolated string is escaped. The content comes from a model and ends up in a file the user
+opens in a browser, so unescaped text here would be stored HTML injection — there is a test that
+submits `<script>alert(1)</script>` as a question and asserts it arrives escaped.
+
+Both tools write into the notes folder, the same single folder the notes tool uses, and both go
+through the same approval dialog. The write surface is still one folder; it now accepts two
+extensions instead of one.
+
+The digest is the one worth defending: you cannot upload a folder to a chat, so asking Pip to look at
+a folder and say what is in it is a capability the architecture enables rather than a convenience.
+
 
 
 ---

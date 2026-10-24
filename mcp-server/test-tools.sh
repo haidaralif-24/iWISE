@@ -41,7 +41,7 @@ expect_contains() {
 
 echo "== 1. tool list =="
 TOOLS=$(call '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | strip)
-for tool in list_files read_document_as_markdown search_notes create_note reveal_secret; do
+for tool in list_files read_document_as_markdown search_notes create_note reveal_secret save_digest save_quiz; do
   expect_contains "$TOOLS" "\"$tool\"" "tool '$tool' is registered"
 done
 
@@ -166,6 +166,54 @@ fi
 # A name handed back by discovery must be usable on the next call.
 OUT=$(call '{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"list_files","arguments":{"folder":"samples"}}}' | strip)
 expect_contains "$OUT" "Activity_1.pdf" "a shared folder name resolves on the next call"
+
+echo
+echo "== 12. artifacts: the model sends structure, the server renders HTML =="
+rm -f "$NOTES_DIR/buoyancy-quiz.html" "$NOTES_DIR/econ-digest.html"
+
+cat > /tmp/pip-quiz.json <<'JSON'
+{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"save_quiz","arguments":{"title":"buoyancy quiz","questions":[{"question":"Which force equals the weight of the displaced fluid?","options":["Buoyancy","Friction","Tension"],"answer":0,"why":"Archimedes' principle."},{"question":"<script>alert(1)</script>","options":["A","B"],"answer":1}]}}}
+JSON
+call "$(cat /tmp/pip-quiz.json)" > /tmp/pip-quiz.out 2>&1 &
+CALL_PID=$!
+sleep 2
+PENDING=$(curl -s "$BASE/pending" -H "Authorization: Bearer $TOKEN")
+REQ_ID=$(printf '%s' "$PENDING" | sed -n 's/.*"id":"\([a-f0-9]*\)".*/\1/p' | head -1)
+curl -s -X POST "$BASE/approve" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"'"$REQ_ID"'","approved":true}' > /dev/null
+wait $CALL_PID
+
+QUIZ="$NOTES_DIR/buoyancy-quiz.html"
+if [ -f "$QUIZ" ]; then
+  pass "quiz was written to the notes folder"
+else
+  fail "quiz was NOT written"
+fi
+expect_contains "$(cat "$QUIZ" 2>/dev/null)" "Which force equals" "quiz question rendered"
+expect_contains "$(cat "$QUIZ" 2>/dev/null)" 'data-answer="0"' "quiz carries the answer index"
+if grep -qF '<script>alert(1)</script>' "$QUIZ" 2>/dev/null; then
+  fail "model-supplied HTML was written unescaped"
+else
+  pass "model-supplied HTML is escaped"
+fi
+
+cat > /tmp/pip-digest.json <<'JSON'
+{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"save_digest","arguments":{"title":"econ digest","summary":"Three files for the macro unit.","files":[{"name":"notes.md","what":"Class notes","worth":"read"},{"name":"old.md","what":"Superseded draft","worth":"skip"}]}}}
+JSON
+call "$(cat /tmp/pip-digest.json)" > /tmp/pip-digest.out 2>&1 &
+CALL_PID=$!
+sleep 2
+PENDING=$(curl -s "$BASE/pending" -H "Authorization: Bearer $TOKEN")
+REQ_ID=$(printf '%s' "$PENDING" | sed -n 's/.*"id":"\([a-f0-9]*\)".*/\1/p' | head -1)
+curl -s -X POST "$BASE/approve" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"'"$REQ_ID"'","approved":true}' > /dev/null
+wait $CALL_PID
+
+DIGEST="$NOTES_DIR/econ-digest.html"
+expect_contains "$(cat "$DIGEST" 2>/dev/null)" "Class notes" "digest lists the files it covered"
+expect_contains "$(cat "$DIGEST" 2>/dev/null)" 'class="pill skip"' "digest marks what to skip"
 
 echo
 if [ "$FAILED" = "0" ]; then

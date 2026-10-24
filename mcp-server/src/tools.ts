@@ -40,6 +40,182 @@ function text(content: string) {
   return { content: [{ type: "text" as const, text: content }] };
 }
 
+// ---------------------------------------------------------------------------
+// Artifact rendering
+//
+// The model returns structure, not markup. Two reasons: a quiz or a digest is
+// ~700 tokens of JSON against ~2,500 of hand-written HTML, and the page that
+// gets written is guaranteed to be valid because the template lives here.
+//
+// Every interpolated string is escaped. The content comes from a model and
+// lands in a file the user opens in a browser, so unescaped text here would be
+// stored HTML injection.
+// ---------------------------------------------------------------------------
+
+const ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+function esc(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ESCAPES[character]);
+}
+
+/** Shared page shell: same palette as the app, no external assets, prints clean. */
+function pageShell(title: string, body: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)}</title>
+<style>
+  :root { --navy:#272E57; --gold:#BBA74F; --ink:#1F2547; --dim:#5A6076; --rule:#E8E8E8; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:48px 20px 64px; background:#fff; color:var(--ink);
+         font:17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width:760px; margin:0 auto; }
+  h1 { font-size:34px; line-height:1.15; color:var(--navy); margin:0 0 6px; letter-spacing:-0.01em; }
+  .kicker { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); font-weight:700; }
+  .lede { font-size:19px; color:var(--dim); margin:14px 0 28px; }
+  h2 { font-size:20px; color:var(--navy); margin:32px 0 10px; }
+  hr { border:0; border-top:2px solid var(--gold); margin:18px 0 26px; }
+  table { width:100%; border-collapse:collapse; font-size:16px; }
+  th { text-align:left; font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+       color:var(--dim); border-bottom:1px solid var(--rule); padding:6px 10px 6px 0; }
+  td { padding:9px 10px 9px 0; border-bottom:1px solid var(--rule); vertical-align:top; }
+  td.name { font-weight:600; overflow-wrap:anywhere; }
+  .pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.08em;
+          text-transform:uppercase; padding:2px 8px; border-radius:99px; }
+  .pill.read { background:var(--navy); color:#fff; }
+  .pill.skim { background:var(--gold); color:#2b2306; }
+  .pill.skip { background:var(--rule); color:var(--dim); }
+  .q { margin:0 0 26px; padding:0 0 22px; border-bottom:1px solid var(--rule); }
+  .q h2 { margin:0 0 12px; font-size:19px; }
+  .opts { display:grid; gap:8px; }
+  .opt { text-align:left; font:inherit; font-size:16px; padding:10px 14px; cursor:pointer;
+         background:#fff; color:var(--ink); border:1.5px solid var(--rule); border-radius:8px; }
+  .opt:hover { border-color:var(--gold); }
+  .opt.ok { background:#E7F2EA; border-color:#2F6B4F; font-weight:600; }
+  .opt.bad { background:#F8E8E8; border-color:#8E2A2A; }
+  .opt[disabled] { cursor:default; }
+  .why { margin:10px 0 0; font-size:15px; color:var(--dim); }
+  .score { position:sticky; bottom:0; margin-top:26px; padding:12px 16px; border-radius:10px;
+           background:var(--navy); color:#fff; font-weight:600; }
+  footer { max-width:760px; margin:44px auto 0; font-size:13px; color:var(--dim); }
+  @media print { body { padding:0; } .opt { border-color:#bbb; } .score { position:static; } }
+</style>
+</head>
+<body>
+<main>
+${body}
+</main>
+<footer>Written by Pip from files on this machine. Nothing was uploaded.</footer>
+</body>
+</html>
+`;
+}
+
+type DigestFile = { name: string; what: string; worth: "read" | "skim" | "skip" };
+
+function renderDigest(title: string, summary: string, files: DigestFile[]): string {
+  const rows = files
+    .map(
+      (file) => `      <tr>
+        <td class="name">${esc(file.name)}</td>
+        <td>${esc(file.what)}</td>
+        <td><span class="pill ${esc(file.worth)}">${esc(file.worth)}</span></td>
+      </tr>`,
+    )
+    .join("\n");
+
+  return pageShell(
+    title,
+    `<div class="kicker">Folder digest</div>
+<h1>${esc(title)}</h1>
+<p class="lede">${esc(summary)}</p>
+<hr>
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th>Worth</th></tr></thead>
+  <tbody>
+${rows}
+  </tbody>
+</table>`,
+  );
+}
+
+type QuizQuestion = { question: string; options: string[]; answer: number; why?: string };
+
+function renderQuiz(title: string, questions: QuizQuestion[]): string {
+  const body = questions
+    .map((question, questionIndex) => {
+      const options = question.options
+        .map(
+          (option, optionIndex) =>
+            `        <button class="opt" data-answer="${question.answer}" data-pick="${optionIndex}">${esc(option)}</button>`,
+        )
+        .join("\n");
+
+      return `  <section class="q">
+    <h2>${questionIndex + 1}. ${esc(question.question)}</h2>
+    <div class="opts">
+${options}
+    </div>
+    <p class="why" hidden>${esc(question.why ?? "")}</p>
+  </section>`;
+    })
+    .join("\n");
+
+  return pageShell(
+    title,
+    `<div class="kicker">Quiz</div>
+<h1>${esc(title)}</h1>
+<p class="lede">${questions.length} questions. Pick an answer to check it.</p>
+<hr>
+${body}
+<div class="score" id="score">0 correct of 0 answered</div>
+<script>
+  (function () {
+    var answered = 0, correct = 0;
+    var score = document.getElementById("score");
+    document.querySelectorAll(".q").forEach(function (section) {
+      var buttons = section.querySelectorAll(".opt");
+      var why = section.querySelector(".why");
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (section.dataset.done) return;
+          section.dataset.done = "1";
+          var right = button.dataset.pick === button.dataset.answer;
+          buttons.forEach(function (other) {
+            other.disabled = true;
+            if (other.dataset.pick === other.dataset.answer) other.classList.add("ok");
+          });
+          if (!right) button.classList.add("bad");
+          answered += 1;
+          if (right) correct += 1;
+          if (why && why.textContent.trim()) why.hidden = false;
+          score.textContent = correct + " correct of " + answered + " answered";
+        });
+      });
+    });
+  })();
+</script>`,
+  );
+}
+
+/** Same filename rules as a note: strip anything that is not word, space or dash. */
+function safeFileName(title: string, extension: string): string {
+  const cleaned = title
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60);
+  return `${cleaned || "artifact"}.${extension}`;
+}
+
 function failure(reason: string) {
   return { content: [{ type: "text" as const, text: reason }], isError: true };
 }
@@ -372,14 +548,8 @@ export function registerTools(server: McpServer): void {
       }
 
       // The file name is derived from the title, so it has to be sanitised
-      // before it touches the filesystem.
-      const safeName = title
-        .replace(/[^\w\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "-")
-        .slice(0, 60);
-      const fileName = `${safeName || "note"}.md`;
-      const target = path.join(NOTES_DIR, fileName);
+      // before it touches the filesystem. Same rule as the artifact tools.
+      const target = path.join(NOTES_DIR, safeFileName(title, "md"));
 
       try {
         fs.mkdirSync(NOTES_DIR, { recursive: true, mode: 0o700 });
@@ -398,6 +568,153 @@ export function registerTools(server: McpServer): void {
       });
 
       return text(`Saved the note to ${target}`);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Artifacts: structure in, rendered HTML out
+  // -------------------------------------------------------------------------
+
+  /**
+   * Shared write path for the two artifact tools. Both write into the notes
+   * folder — the same single folder the notes tool uses — and both ask first.
+   */
+  async function saveArtifact(
+    tool: "save_digest" | "save_quiz",
+    title: string,
+    html: string,
+    approvalReason: string,
+    auditArguments: Record<string, unknown>,
+  ) {
+    const approved = await requestApproval({
+      tool,
+      arguments: auditArguments,
+      reason: approvalReason,
+    });
+
+    if (!approved) {
+      audit({
+        tool,
+        arguments: auditArguments,
+        allowed: true,
+        approved: false,
+        reason: "the user declined",
+        actor: "user",
+      });
+      return failure("The user declined to save that file.");
+    }
+
+    const target = path.join(NOTES_DIR, safeFileName(title, "html"));
+
+    try {
+      fs.mkdirSync(NOTES_DIR, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(target, html, { mode: 0o600 });
+    } catch (error) {
+      return failure(`Could not write the file: ${String(error)}`);
+    }
+
+    audit({
+      tool,
+      arguments: auditArguments,
+      allowed: true,
+      approved: true,
+      reason: null,
+      actor: "user",
+    });
+
+    return text(
+      `Saved to ${path.basename(target)} in the notes folder. Open it from the Notes tab.`,
+    );
+  }
+
+  server.registerTool(
+    "save_digest",
+    {
+      title: "Save a folder digest",
+      description:
+        "Write a one-page HTML digest of a set of files into the user's notes folder. Call this after reading the files with list_files and read_document_as_markdown. Pass structure only, never HTML. The user is asked to approve the write.",
+      inputSchema: z.object({
+        title: z.string().describe("Short title. Also used as the file name."),
+        summary: z
+          .string()
+          .describe("Two or three sentences: what this set of files is, and what matters in it."),
+        files: z
+          .array(
+            z.object({
+              name: z.string().describe("File name, as listed."),
+              what: z.string().describe("One line: what this file actually is."),
+              worth: z
+                .enum(["read", "skim", "skip"])
+                .describe("How much of the user's attention it deserves."),
+            }),
+          )
+          .min(1)
+          .max(8)
+          .describe("At most eight files. Say which ones you skipped in the summary."),
+      }),
+    },
+    async (args) => {
+      const title = String(args.title ?? "").trim();
+      if (!title) return failure("A title is required.");
+      if (!args.summary?.trim()) return failure("A summary is required.");
+
+      return saveArtifact(
+        "save_digest",
+        title,
+        renderDigest(title, args.summary, args.files as DigestFile[]),
+        `Save a digest titled "${title}" covering ${args.files.length} files to the notes folder.`,
+        { title, files: args.files.length },
+      );
+    },
+  );
+
+  server.registerTool(
+    "save_quiz",
+    {
+      title: "Save a quiz",
+      description:
+        "Write a self-checking HTML quiz into the user's notes folder. Call this after reading the material the questions come from. Pass structure only, never HTML: questions, options, and the index of the correct option. The user is asked to approve the write.",
+      inputSchema: z.object({
+        title: z.string().describe("Short title. Also used as the file name."),
+        questions: z
+          .array(
+            z.object({
+              question: z.string(),
+              options: z.array(z.string()).min(2).max(6),
+              answer: z
+                .number()
+                .int()
+                .min(0)
+                .describe("Zero-based index of the correct option."),
+              why: z.string().optional().describe("One line explaining the answer."),
+            }),
+          )
+          .min(1)
+          .max(20),
+      }),
+    },
+    async (args) => {
+      const title = String(args.title ?? "").trim();
+      if (!title) return failure("A title is required.");
+      if (!args.questions?.length) return failure("At least one question is required.");
+
+      // A bad index would render a quiz where nothing can be marked correct.
+      const broken = args.questions.findIndex(
+        (question) => question.answer < 0 || question.answer >= question.options.length,
+      );
+      if (broken >= 0) {
+        return failure(
+          `Question ${broken + 1} points at option ${args.questions[broken].answer}, but it has ${args.questions[broken].options.length}. The index is zero-based.`,
+        );
+      }
+
+      return saveArtifact(
+        "save_quiz",
+        title,
+        renderQuiz(title, args.questions as QuizQuestion[]),
+        `Save a ${args.questions.length}-question quiz titled "${title}" to the notes folder.`,
+        { title, questions: args.questions.length },
+      );
     },
   );
 }
@@ -437,6 +754,7 @@ export function serverInstructions(): string {
     "Call list_files with no folder to list them with file counts.",
     "read_document_as_markdown returns text only — the file itself is never uploaded.",
     "create_note writes into the notes folder and always asks the user first.",
+    "save_digest and save_quiz render a page from structure you supply. Pass questions or file lines, never HTML; the page is built here.",
     "Anything outside these folders is refused. Do not ask for another folder; the user grants access in the Pip window.",
   ].join("\n");
 }

@@ -71,9 +71,9 @@ Incremental, in three tiers, so each tier is a complete project if time runs out
 1. **Tier 1** — always-on-top window, global hotkey, Pomodoro timer, quick notes.
 2. **Tier 2** — drag-and-drop document, local conversion to Markdown, editable preview, page
    selection, token counter.
-3. **Tier 3** — local MCP server exposing five tools (`list_files`, `read_document_as_markdown`,
-   `create_note`, `search_notes`, `reveal_secret`), folder allowlist, approval prompt before any
-   write, append-only audit log.
+3. **Tier 3** — local MCP server exposing seven tools (`list_files`, `read_document_as_markdown`,
+   `create_note`, `search_notes`, `save_digest`, `save_quiz`, `reveal_secret`), folder allowlist,
+   approval prompt before any write, append-only audit log.
 
 The riskiest unknown — whether a free account can reach a local MCP server at all — was tested on
 day 2, before Tier 2 was started. A project that fails H1 is a different project.
