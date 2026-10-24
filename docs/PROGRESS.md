@@ -25,7 +25,7 @@ Last updated: 2026-10-22.
 | | Editable preview, merge files | Written |
 | | Three-figure token readout | Written |
 | | Prompt templates | Written |
-| | Copy prompt to the clipboard | Written — replaces chat injection |
+| | ~~Copy prompt to the clipboard~~ | **Removed 2026-10-24** |
 | | ~~Inject into the chat input~~ | **Removed 2026-10-24** |
 | **3** | Five MCP tools | Done, called through the public tunnel |
 | | Folder allowlist, granted in the app | Done, verified live (grant/revoke, no restart) |
@@ -133,13 +133,20 @@ Result: `./test.sh` → **exit 0**, 13 Rust tests, 9 bridge tests, all tool-laye
 Five days out from the iWISE Regional Final, three things came out of the build. None of them is a
 fix; all of them are decisions about what to claim.
 
-**Chat injection is gone.** `inject_into_chat`, `bridge/inject.js` and its test file were removed.
-The command evaluated a page script into the chat webview to write the prompt into the message box.
-It worked against a DOM stub and had never run against a live page, and the page is a third-party
-site whose markup can change without notice. A link that fails on stage is worse than a link that
-was never promised, so the clipboard replaced it: **Copy prompt**, one paste, no vendor dependency.
-The cost is real and is stated rather than hidden — the user still presses paste, so Pip prepares the
-prompt rather than sending it.
+**Chat injection is gone, and nothing replaced it.** `inject_into_chat`, `bridge/inject.js` and its
+test file were removed. The command evaluated a page script into the chat webview to write the prompt
+into the message box. It worked against a DOM stub and had never run against a live page, and the page
+is a third-party site whose markup can change without notice. A link that fails on stage is worse
+than a link that was never promised.
+
+A clipboard button was written as the replacement and then removed as well, on the same reasoning
+taken one step further: the preview is already a plain editable text box, so selecting the text and
+pressing `Cmd+C` needs no code, no permission and cannot break. The app now has **no path out to the
+chat at all** — Tier 2 ends with the prompt on screen.
+
+This is a real loss of scope and it is the honest one: **Pip prepares the prompt, it does not deliver
+it.** The claim in the abstract, the poster and the demo has to say that, and the report has to say
+why.
 
 **The launcher is gone.** It was a hard-coded list of twelve apps and folders opened through the
 opener plugin. macOS Spotlight does the same thing better, it was never run, and it added a tab a

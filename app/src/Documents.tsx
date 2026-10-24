@@ -221,16 +221,6 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
 
   const percent = savedPercent(baseline, sending.tokens);
 
-  async function copyToClipboard() {
-    if (!sending.text.trim()) return;
-    try {
-      await navigator.clipboard.writeText(sending.text);
-      setNotice("Copied to the clipboard.");
-    } catch {
-      setError("Could not reach the clipboard.");
-    }
-  }
-
   return (
     <section className="card docs">
       <div className="timer-head">
@@ -344,7 +334,7 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       {active && !mergeAll && (
         <>
           <div className="editor-head">
-            <span className="muted">Preview — edit before sending</span>
+            <span className="muted">Preview — edit, then select the text and copy it</span>
             <button
               className="link"
               onClick={() => updateText(active.id, tidy(active.original))}
@@ -405,9 +395,6 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       {notice && <p className="ok">{notice}</p>}
 
       <div className="actions">
-        <button className="primary" onClick={() => void copyToClipboard()} disabled={!sending.text.trim()}>
-          Copy prompt
-        </button>
         <button
           onClick={() => {
             setItems([]);

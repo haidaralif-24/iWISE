@@ -36,10 +36,10 @@ same size as the raw text, and actually slightly larger. What saves tokens is ch
 pages that matter and editing out the rest. The counter is there so you can see that before you
 copy, not after."
 
-Pick a prompt template from the dropdown, edit the text if you want, then hit **Copy prompt** and
-paste it into the chat. Say why it is a paste: *"We removed the automatic paste. It depended on the
-chat site's own markup, and we could not test it without a live account — one manual paste is worth
-not having it break in front of a judge."*
+Pick a prompt template from the dropdown, edit the text if you want, then select the text in the
+preview and copy it with `Cmd+C`. Say why it is manual: *"We removed the automatic paste. It depended
+on the chat site's own markup, and we could not test it without a live account — one manual paste is
+worth not having it break in front of a judge. Pip prepares the prompt; sending it stays yours."*
 
 ## 3. The tools and the permission prompt (60 s)
 
@@ -92,4 +92,4 @@ workflow handled locally."
 | "The AI can read your files" | "The AI can read files in folders you allow, and only after you approve anything it writes" |
 | "Works with scanned PDFs" | "Scanned PDFs are not tested yet — that is the next thing to build" |
 | "It works offline" | "Conversion runs on this laptop; the only thing that leaves it is what you paste" |
-| "It sends the prompt into the chat for you" | "It prepares the prompt and copies it — the paste is still yours" |
+| "It sends the prompt into the chat for you" | "It prepares the prompt and puts it in front of you — the copy and the paste are still yours" |

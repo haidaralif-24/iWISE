@@ -77,7 +77,7 @@ Pip window  ──drop a PDF──▶  Python (MarkItDown)  ──▶ clean Mark
       │                                                       │
       │                                          preview, edit, select pages
       │                                                       │
-      └──────── copy prompt ──▶ chat window (no Tauri permissions)
+      └──────── select + copy ──▶ chat window (no Tauri permissions)
                                                                 │
 Claude (cloud) ──HTTPS──▶ ngrok ──▶ 127.0.0.1:8787 ──▶ MCP tools ──▶ allowlist + approval + audit
 ```

@@ -14,7 +14,7 @@ but they require paid API keys or capable hardware, which many students do not h
 Pip is a small always-on-top desktop window, built with Tauri and TypeScript, that opens the AI chat
 service a user already has beside a set of local tools. A local pipeline built on Microsoft's
 MarkItDown converts PDF, DOCX, PPTX and XLSX files, lets the user preview and edit the Markdown, and
-shows a token count before copying the prompt into the chat. A local Model Context Protocol server
+shows a token count for the prompt it assembles. A local Model Context Protocol server
 gives the AI controlled access to the user's files, guarded by a folder allowlist with path
 canonicalization, native confirmation prompts before any write, authenticated connections, output
 size limits and an append-only audit log, while the chat webview is deliberately granted no
@@ -28,4 +28,4 @@ cutting a six-page PDF from 2,067 tokens to 680.
 
 **Keywords:** AI assistant, Model Context Protocol, local tool access, permission boundary, Tauri
 
-<!-- 242 words, excluding headings, category block and keywords. -->
+<!-- 255 words in the body, excluding headings, category block and keywords. -->

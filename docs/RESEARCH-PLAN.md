@@ -70,7 +70,7 @@ Incremental, in three tiers, so each tier is a complete project if time runs out
 
 1. **Tier 1** — always-on-top window, global hotkey, Pomodoro timer, quick notes.
 2. **Tier 2** — drag-and-drop document, local conversion to Markdown, editable preview, page
-   selection, token counter, clipboard handoff of the finished prompt.
+   selection, token counter.
 3. **Tier 3** — local MCP server exposing five tools (`list_files`, `read_document_as_markdown`,
    `create_note`, `search_notes`, `reveal_secret`), folder allowlist, approval prompt before any
    write, append-only audit log.
@@ -82,7 +82,7 @@ day 2, before Tier 2 was started. A project that fails H1 is a different project
 
 **Question:** does the chain run end to end?
 
-**Method:** decompose the chain into eight links and record each as pass, fail, or untested. A link
+**Method:** decompose the chain into seven links and record each as pass, fail, or untested. A link
 counts as *pass* only when observed in the running application, never when it merely compiles.
 
 | # | Link |
@@ -92,17 +92,18 @@ counts as *pass* only when observed in the running application, never when it me
 | 3 | MarkItDown returns a JSON envelope |
 | 4 | The preview renders |
 | 5 | Page selection updates the token counter |
-| 6 | The prompt is copied to the clipboard |
-| 7 | The AI calls a tool and receives a result |
-| 8 | A write is blocked, approved, executed and logged |
+| 6 | The AI calls a tool and receives a result |
+| 7 | A write is blocked, approved, executed and logged |
 
-**Reporting:** an eight-row table plus a single continuous run performed in front of a witness.
+**Reporting:** a seven-row table plus a single continuous run performed in front of a witness.
 
 **Scope decision.** The chain originally ended with the prompt written directly into the chat input
-by a page script. That link was removed on 24 October: it depended on the chat vendor's DOM and could
-not be verified without a live account, so a failure on stage was more likely than a success. The
-clipboard is the replacement — one fewer moving part, no vendor dependency, and the same outcome for
-the user. The trade-off is one manual paste, which is stated in the report rather than hidden.
+by a page script. That link was removed on 24 October, and nothing replaced it inside the
+application: it depended on the chat vendor's DOM and could not be verified without a live account,
+so a failure on stage was more likely than a success. The preview is a plain editable text box, so
+the user selects the text and copies it with the operating system. The trade-off is one manual
+paste and it is stated in the report rather than hidden: **Pip prepares the prompt, it does not
+deliver it.**
 
 ### 5.3 Evaluation, axis 2 — Cost
 
