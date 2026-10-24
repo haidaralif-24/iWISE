@@ -83,6 +83,7 @@ echo "== 6. notes search =="
 printf 'Physics notes: buoyancy and displacement.\n' > "$NOTES_DIR/physics.md"
 OUT=$(call '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"search_notes","arguments":{"query":"buoyancy"}}}' | strip)
 expect_contains "$OUT" "buoyancy" "search_notes finds the phrase"
+expect_contains "$OUT" "UNTRUSTED DOCUMENT" "search results are fenced like a document"
 
 echo
 echo "== 7. approval round trip =="
@@ -149,6 +150,21 @@ CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/pending")
 if [ "$CODE" = "401" ]; then pass "/pending needs a token"; else fail "/pending got $CODE without a token"; fi
 CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/nope")
 if [ "$CODE" = "404" ]; then pass "unknown path gets 404"; else fail "unknown path got $CODE"; fi
+
+echo
+echo "== 11. discovery: the model can ask what it may read =="
+OUT=$(call '{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"list_files","arguments":{}}}' | strip)
+expect_contains "$OUT" "shared folder" "list_files with no folder lists the shared folders"
+expect_contains "$OUT" "samples" "the shared folder is named"
+if printf '%s' "$OUT" | grep -qF -- "$REPO"; then
+  fail "the discovery reply leaked an absolute path"
+else
+  pass "the discovery reply contains no absolute path"
+fi
+
+# A name handed back by discovery must be usable on the next call.
+OUT=$(call '{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"list_files","arguments":{"folder":"samples"}}}' | strip)
+expect_contains "$OUT" "Activity_1.pdf" "a shared folder name resolves on the next call"
 
 echo
 if [ "$FAILED" = "0" ]; then

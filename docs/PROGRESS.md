@@ -163,6 +163,31 @@ Also removed: `bundled_helper`, dead since the converter resolution moved to
 Net effect on the test suite: the bridge section is gone, so `./test.sh` now runs 13 Rust tests, no
 bridge tests, and the tool-layer assertions. The count went down and the coverage did not.
 
+### Day 5, later — the model can ask what it may read
+
+Two changes to the tool layer, both about the same thing: the boundary should be legible from inside
+the conversation, not discovered by bumping into it.
+
+**Discovery.** The server now sends `instructions` on connect, listing the shared folders by name and
+saying what the tools do. `list_files` takes no `folder` argument to mean "list the shared folders",
+returning names and entry counts. Names resolve on the next call because `checkFolder` matches a bare
+name against the roots before treating it as a subfolder — which also fixed a documented behaviour
+that had never worked: the comment claimed `list_files("Documents")` resolved, but the candidate path
+was built as `~/Documents/Documents`.
+
+**No more path leaks.** Refusals used to print every shared folder's absolute path. They now print
+names, and echo back only what the caller asked for. A refusal is not the place to hand over the
+layout of the machine.
+
+**The fence gap.** `search_notes` returned raw file lines with no fence and no size cap, while
+`read_document_as_markdown` fenced its output as untrusted data. A note containing "ignore previous
+instructions" arrived at the model as ordinary text — and since `create_note` lets the model write
+into that folder, it could plant text it would read back later. Fixed: search results now go through
+`asUntrustedDocument` and `MAX_CONTENT_CHARS` like everything else.
+
+That is the second time reading the code found something the tests did not. The first was the empty
+token. Both are in the research plan as evidence for the secondary question.
+
 
 ---
 

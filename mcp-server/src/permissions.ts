@@ -26,6 +26,18 @@ function realpathOrNull(target: string): string | null {
   }
 }
 
+/**
+ * Refusals name the shared folders rather than printing their absolute paths.
+ * The model needs something actionable to retry with; it does not need the
+ * layout of the machine, and a refusal is not the place to hand it over.
+ */
+function sharedNames(): string {
+  const names = allowedFolders()
+    .map((root) => path.basename(root))
+    .filter((name) => name.length > 0);
+  return names.length ? names.join(", ") : "(none)";
+}
+
 /** True when `child` is inside `parent`, after both have been resolved. */
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
@@ -72,9 +84,9 @@ export function checkPath(candidate: string): PathCheck {
   return {
     ok: false,
     reason:
-      `path is outside the folders the user shared: ${resolved}\n` +
-      `shared: ${allowedFolders().join(", ")}\n` +
-      `the user can add a folder in the Pip window`,
+      `path is outside the folders the user shared: ${raw}\n` +
+      `shared folders: ${sharedNames()}\n` +
+      `call list_files with no folder to see them; the user grants access in the Pip window`,
   };
 }
 
@@ -93,9 +105,15 @@ export function checkFolder(candidate: string): PathCheck {
   // A relative path is interpreted as "inside one of the allowed folders",
   // which is what makes list_files("Documents") work without leaking the
   // absolute layout of the machine.
+  // A bare name may be a shared folder itself (`list_files("Documents")`) or a
+  // subfolder of one (`list_files("Documents/coursework")`). The exact match is
+  // tried first, so a name the model was handed always resolves.
   const candidates = path.isAbsolute(expanded)
     ? [expanded]
-    : roots.map((root) => path.join(root, expanded));
+    : [
+        ...roots.filter((root) => path.basename(root) === expanded),
+        ...roots.map((root) => path.join(root, expanded)),
+      ];
 
   for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
@@ -114,6 +132,9 @@ export function checkFolder(candidate: string): PathCheck {
 
   return {
     ok: false,
-    reason: `folder is outside the folders the user shared: ${raw}\nshared: ${roots.join(", ")}`,
+    reason:
+      `folder is outside the folders the user shared: ${raw}\n` +
+      `shared folders: ${sharedNames()}\n` +
+      `call list_files with no folder to see them`,
   };
 }

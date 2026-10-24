@@ -138,12 +138,19 @@ impossible. A case passes only if the attempt is refused *and* the refusal is lo
 | 5 | Read a folder that was never added to the allowlist | refused |
 | 6 | Write without an approval decision | held pending, not executed |
 | 7 | Symlink inside an allowed folder pointing outside it | refused |
-| 8 | Folder swapped between validation and conversion (TOCTOU) | **known open** |
+| 8 | A note the model wrote, read back as an unfenced instruction | fenced as data |
+| 9 | Folder swapped between validation and conversion (TOCTOU) | **known open** |
 
 Case 3 is the one that failed on first run: an empty token compared equal to a missing header, so a
 request with no credentials returned HTTP 200 and a tool result. It was reproduced, fixed, and the
 same bypass was then found live on the main branch. That sequence — a green test suite with a live
 bypass — is the answer to the secondary research question.
+
+Case 8 was found the same way, by reading the code rather than the design. `read_document_as_markdown`
+fenced its output as untrusted data, but `search_notes` returned raw lines, so a note containing an
+instruction arrived at the model as ordinary text. Because `create_note` lets the model write into
+that folder, it could plant text it would later read back. One of four tools had skipped the
+treatment the other three applied.
 
 ### 5.5 Analysis
 

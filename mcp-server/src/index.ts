@@ -28,7 +28,7 @@ import {
   resolveToken,
   writeControlFile,
 } from "./config.js";
-import { registerTools, describeAllowlist } from "./tools.js";
+import { registerTools, describeAllowlist, serverInstructions } from "./tools.js";
 
 // A short explicit token is a configuration error and stops the server. An
 // unset one is not: a token is generated and saved, so the same value is reused
@@ -41,7 +41,12 @@ try {
 }
 
 function buildServer(): McpServer {
-  const server = new McpServer({ name: "pip-tools", version: "0.2.0" });
+  // The instructions are rebuilt with the server, which happens per request, so
+  // a folder granted or revoked in the app shows up on the model's next call.
+  const server = new McpServer(
+    { name: "pip-tools", version: "0.2.0" },
+    { instructions: serverInstructions() },
+  );
 
   registerTools(server);
 

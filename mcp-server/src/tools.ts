@@ -50,17 +50,67 @@ export function registerTools(server: McpServer): void {
     {
       title: "List files",
       description:
-        "List the files in a folder the user has allowed. Use this to find documents before reading them.",
+        "List the files in a folder the user has allowed. Call it with no folder to see which folders are shared.",
       inputSchema: z.object({
         folder: z
           .string()
+          .optional()
           .describe(
-            "Folder to list. An absolute path, or a name relative to one of the allowed folders.",
+            "Folder to list: a shared folder name, a subfolder of one, or an absolute path. Omit to list the shared folders themselves.",
           ),
         subpath: z.string().optional().describe("Optional subfolder to descend into."),
       }),
     },
     async (args) => {
+      // No folder given: this is the model asking what it may read. Answer with
+      // names and counts, never absolute paths — a name is enough to call back.
+      if (!args.folder || !args.folder.trim()) {
+        const roots = allowedFolders();
+
+        if (roots.length === 0) {
+          audit({
+            tool: "list_files",
+            arguments: args,
+            allowed: true,
+            approved: null,
+            reason: "no folders shared",
+            actor: "model",
+          });
+          return text(
+            "No folders are shared yet. The user adds them in the Pip window, on the Access tab.",
+          );
+        }
+
+        const lines = roots.map((root) => {
+          const name = path.basename(root);
+          let count = 0;
+          try {
+            count = fs.readdirSync(root).length;
+          } catch {
+            // An unreadable root is still worth naming, so the model knows it exists.
+          }
+          return `- ${name} (${count} entries)`;
+        });
+
+        audit({
+          tool: "list_files",
+          arguments: args,
+          allowed: true,
+          approved: null,
+          reason: "listed the shared folders",
+          actor: "model",
+        });
+
+        return text(
+          [
+            `${roots.length} shared ${roots.length === 1 ? "folder" : "folders"}:`,
+            ...lines,
+            "",
+            "Call list_files again with one of these names to see its contents.",
+          ].join("\n"),
+        );
+      }
+
       const target = args.subpath ? path.join(args.folder, args.subpath) : args.folder;
       const check = checkFolder(target);
 
@@ -261,10 +311,26 @@ export function registerTools(server: McpServer): void {
         actor: "model",
       });
 
+      // Search results are file content, so they get the same treatment as a
+      // converted document: fenced as data and capped. Without this, a note the
+      // model wrote itself could come back as an unfenced instruction.
+      const body = matches.length
+        ? [`${matches.length} matches for "${query}"`, "", ...matches].join("\n")
+        : `No matches for "${query}".`;
+
+      let capped = body;
+      let truncated = false;
+      if (capped.length > MAX_CONTENT_CHARS) {
+        capped = capped.slice(0, MAX_CONTENT_CHARS);
+        truncated = true;
+      }
+
+      const note = truncated
+        ? "\n\nNOTE: results were truncated because they exceeded the size limit."
+        : "";
+
       return text(
-        matches.length
-          ? [`${matches.length} matches for "${query}" in ${check.path}`, "", ...matches].join("\n")
-          : `No matches for "${query}" in ${check.path}`,
+        `${asUntrustedDocument(capped, `${path.basename(check.path)} (search results)`)}${note}`,
       );
     },
   );
@@ -339,4 +405,38 @@ export function registerTools(server: McpServer): void {
 /** Exposed so the server can print the current allowlist on boot. */
 export function describeAllowlist(): string {
   return allowedFolders().join("\n  ");
+}
+
+/**
+ * Folder names only. The model never needs the absolute layout of the machine,
+ * and a name is enough to call back with — `checkFolder` matches it against the
+ * allowlist before treating it as a subfolder.
+ */
+export function folderNames(): string[] {
+  return allowedFolders()
+    .map((folder) => path.basename(folder))
+    .filter((name) => name.length > 0);
+}
+
+/**
+ * What the model is told when it connects.
+ *
+ * Recomputed on every request: the server is rebuilt per call, and the user can
+ * grant or revoke a folder without restarting anything.
+ */
+export function serverInstructions(): string {
+  const names = folderNames();
+  const shared = names.length ? names.map((name) => `  - ${name}`).join("\n") : "  (none yet)";
+
+  return [
+    "Pip gives you read access to specific folders on this machine, and one narrow write.",
+    "",
+    "Shared folders:",
+    shared,
+    "",
+    "Call list_files with no folder to list them with file counts.",
+    "read_document_as_markdown returns text only — the file itself is never uploaded.",
+    "create_note writes into the notes folder and always asks the user first.",
+    "Anything outside these folders is refused. Do not ask for another folder; the user grants access in the Pip window.",
+  ].join("\n");
 }
