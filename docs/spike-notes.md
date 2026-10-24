@@ -6,6 +6,11 @@ Goal: decide how the AI chat reaches our local tools.
 > then what was found while building it, then the corrections to the original claims. The
 > corrections matter more than the checklist — read the sections at the bottom before quoting any
 > number from the top.
+>
+> **Superseded in one place (2026-10-24):** everything below about `bridge/inject.js` and
+> `inject_into_chat` describes code that has since been removed. The notes are kept because they
+> record how the page script was tested and why it looked safe; they are not a description of the
+> current app. See `PROGRESS.md`, Day 5.
 
 ## Checklist
 

@@ -1,21 +1,20 @@
 # Pip
 
 A tiny always-on-top AI chat window that gives the AI you already use safe access
-to your files, plus a few offline productivity tools.
+to your files.
 No API key, no local model.
 
-iWISE Regional Final, Software / Programming.
+iWISE Regional Final, iTECH — Software / Programming.
 
 ## Layout
 
 | Folder | Purpose |
 |---|---|
-| `app/` | Tauri app (floating window, UI, timer, notes, launcher). Created with `npm create tauri-app@latest` |
+| `app/` | Tauri app (floating window, UI, timer, notes, document pipeline) |
 | `mcp-server/` | TypeScript MCP server + permission and audit layer |
 | `sidecars/markitdown/` | Python MarkItDown wrapper (document to Markdown) |
 | `sidecars/tunnel/` | Tunnel binary notes (cloudflared / ngrok) |
-| `bridge/` | Page-script helper for inserting Markdown into the chat input (Tier 2). Not a tool bridge — tool access goes through MCP |
-| `docs/` | Concept, spike notes, pilot survey, demo script |
+| `docs/` | Abstract, research plan, concept, spike notes, progress log, demo script |
 | `tests/samples/` | Real test files: textbook PDF, PPTX, DOCX, scanned PDF |
 
 ## Quick start
@@ -64,7 +63,6 @@ Or individually:
 ```bash
 cd mcp-server && ./test-tools.sh                 # the tool layer: allowlist, approvals, audit log
 cd app/src-tauri && cargo test                   # the app's command layer
-node bridge/test-inject.js                       # the page script that writes into the chat box
 cd app && npm run build                          # frontend type-check + production bundle
 ```
 
@@ -79,7 +77,7 @@ Pip window  ──drop a PDF──▶  Python (MarkItDown)  ──▶ clean Mark
       │                                                       │
       │                                          preview, edit, select pages
       │                                                       │
-      └──────── inject ──▶ chat window (no Tauri permissions)  │
+      └──────── copy prompt ──▶ chat window (no Tauri permissions)
                                                                 │
 Claude (cloud) ──HTTPS──▶ ngrok ──▶ 127.0.0.1:8787 ──▶ MCP tools ──▶ allowlist + approval + audit
 ```

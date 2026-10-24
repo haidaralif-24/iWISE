@@ -221,17 +221,6 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
 
   const percent = savedPercent(baseline, sending.tokens);
 
-  async function sendToChat() {
-    if (!sending.text.trim()) return;
-    setError(null);
-    try {
-      await invoke("inject_into_chat", { text: sending.text });
-      setNotice("Sent to the chat window.");
-    } catch (err) {
-      setError(String(err));
-    }
-  }
-
   async function copyToClipboard() {
     if (!sending.text.trim()) return;
     try {
@@ -416,11 +405,8 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       {notice && <p className="ok">{notice}</p>}
 
       <div className="actions">
-        <button className="primary" onClick={() => void sendToChat()} disabled={!sending.text.trim()}>
-          Send to chat
-        </button>
-        <button onClick={() => void copyToClipboard()} disabled={!sending.text.trim()}>
-          Copy
+        <button className="primary" onClick={() => void copyToClipboard()} disabled={!sending.text.trim()}>
+          Copy prompt
         </button>
         <button
           onClick={() => {

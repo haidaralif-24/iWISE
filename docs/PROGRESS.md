@@ -17,7 +17,7 @@ Last updated: 2026-10-22.
 | **1** | Floating window, always-on-top, hotkey | Done, used daily |
 | | Chat window (separate window, docked) | Done |
 | | Pomodoro timer, adjustable durations | Done, verified in the app |
-| | App / shortcut launcher | Written |
+| | App / shortcut launcher | **Removed 2026-10-24** |
 | | Quick notes | Written |
 | **2** | Drag-and-drop a document | Written |
 | | Convert to clean Markdown | Done, measured on real files |
@@ -25,7 +25,8 @@ Last updated: 2026-10-22.
 | | Editable preview, merge files | Written |
 | | Three-figure token readout | Written |
 | | Prompt templates | Written |
-| | Inject into the chat input | Written, bridge tests pass |
+| | Copy prompt to the clipboard | Written — replaces chat injection |
+| | ~~Inject into the chat input~~ | **Removed 2026-10-24** |
 | **3** | Five MCP tools | Done, called through the public tunnel |
 | | Folder allowlist, granted in the app | Done, verified live (grant/revoke, no restart) |
 | | Confirmation before writing | Written, wired end to end |
@@ -127,6 +128,35 @@ has a proxy configured. Both scripts now set `no_proxy` for loopback.
 
 Result: `./test.sh` → **exit 0**, 13 Rust tests, 9 bridge tests, all tool-layer assertions.
 
+### Day 5 — 2026-10-24: scope reduction before the exhibition
+
+Five days out from the iWISE Regional Final, three things came out of the build. None of them is a
+fix; all of them are decisions about what to claim.
+
+**Chat injection is gone.** `inject_into_chat`, `bridge/inject.js` and its test file were removed.
+The command evaluated a page script into the chat webview to write the prompt into the message box.
+It worked against a DOM stub and had never run against a live page, and the page is a third-party
+site whose markup can change without notice. A link that fails on stage is worse than a link that
+was never promised, so the clipboard replaced it: **Copy prompt**, one paste, no vendor dependency.
+The cost is real and is stated rather than hidden — the user still presses paste, so Pip prepares the
+prompt rather than sending it.
+
+**The launcher is gone.** It was a hard-coded list of twelve apps and folders opened through the
+opener plugin. macOS Spotlight does the same thing better, it was never run, and it added a tab a
+judge would reasonably ask about. Deleted.
+
+**The offline claim is gone.** The README, abstract and demo script all claimed "offline productivity
+tools". Only the Pomodoro had ever been run; the launcher and notes had not. The claim is now the
+smaller true one: conversion happens on this machine, and the only thing that leaves it is what the
+user pastes.
+
+Also removed: `bundled_helper`, dead since the converter resolution moved to
+`resolve_converter_from` — it had been emitting a dead-code warning on every build.
+
+Net effect on the test suite: the bridge section is gone, so `./test.sh` now runs 13 Rust tests, no
+bridge tests, and the tool-layer assertions. The count went down and the coverage did not.
+
+
 ---
 
 ## Verified, and how
@@ -138,7 +168,7 @@ Result: `./test.sh` → **exit 0**, 13 Rust tests, 9 bridge tests, all tool-laye
 | Path traversal is blocked | `../../etc/passwd` and `/etc/passwd` both refused |
 | Folder access applies without a restart | Revoked and re-granted against a running server |
 | Empty token cannot authorise | Reproduced, then fixed and re-tested |
-| Whole test suite | `./test.sh` → exit 0: 13 Rust, 9 bridge, all tool-layer assertions |
+| Whole test suite | `./test.sh` → exit 0: 13 Rust tests, all tool-layer assertions |
 
 ## Not verified
 

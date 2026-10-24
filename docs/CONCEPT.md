@@ -12,6 +12,12 @@ Stack: Tauri (Rust for the native shell, TypeScript for everything the user sees
 > the Rust side is no longer "template only" (§6), there is deliberately no `Origin` check (§7),
 > and the token saving comes from page selection and editing rather than from Markdown being
 > smaller than raw text (§8).
+>
+> **Scope reduced 2026-10-24.** Three things in this document are no longer true of the shipped app:
+> the chat-input injection (§4 Tier 2, §10), the app launcher (§4 Tier 1), and the "offline
+> productivity tools" framing (§2). Injection and the launcher were removed; the offline claim was
+> narrowed to "processing happens locally". See `PROGRESS.md`, Day 5, for the reasoning. This
+> document is kept as the design record and is not retro-edited.
 
 ---
 

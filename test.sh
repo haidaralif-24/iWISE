@@ -41,14 +41,6 @@ else
   fail "frontend build"
 fi
 
-# ----------------------------------------------------------------- bridge
-section "Bridge — the script that writes into the chat page"
-if node bridge/test-inject.js; then
-  :
-else
-  fail "bridge tests"
-fi
-
 # ----------------------------------------------------------------- mcp server
 section "MCP server — type check"
 if (cd mcp-server && npx tsc --noEmit); then

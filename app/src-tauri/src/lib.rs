@@ -23,10 +23,6 @@ const CHAT_HEIGHT: f64 = 680.0;
 /// recorded a 22 second PDF, so the limit is generous but not infinite.
 const CONVERT_TIMEOUT: Duration = Duration::from_secs(180);
 
-/// The bridge that writes Markdown into the chat page. Embedded at build time
-/// so the shipped app carries it without a file dependency.
-const BRIDGE_JS: &str = include_str!("../../../bridge/inject.js");
-
 // ---------------------------------------------------------------------------
 // Hotkey
 // ---------------------------------------------------------------------------
@@ -144,30 +140,6 @@ fn open_chat(app: AppHandle, url: String) -> Result<(), String> {
     let _ = dock_chat(&main, &chat);
 
     Ok(())
-}
-
-/// Writes Markdown into the chat page's message box.
-///
-/// The chat window has no Tauri permissions by design, so this cannot go
-/// through the IPC bridge. Instead the bridge script is evaluated directly
-/// into the page, which is the only thing it is allowed to do.
-#[tauri::command]
-fn inject_into_chat(app: AppHandle, text: String) -> Result<(), String> {
-    let chat = app
-        .get_webview_window("chat")
-        .ok_or("no chat window is open — open one first")?;
-
-    if text.trim().is_empty() {
-        return Err("there is nothing to send".into());
-    }
-
-    let payload = serde_json::to_string(&text).map_err(|err| err.to_string())?;
-    let script = format!(
-        "window.__PIP_PAYLOAD__ = {payload};\n{BRIDGE_JS}\n\
-         window.__pipInject && window.__pipInject(window.__PIP_PAYLOAD__);"
-    );
-
-    chat.eval(&script).map_err(|err| err.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -316,12 +288,6 @@ fn helper_in(dir: &Path) -> Option<PathBuf> {
     }
 
     None
-}
-
-/// The helper bundled next to the app, if this is a shipped build.
-fn bundled_helper(app: Option<&AppHandle>) -> Option<PathBuf> {
-    let dir = app?.path().resource_dir().ok()?;
-    helper_in(&dir)
 }
 
 /// Resolution order: explicit override, bundled helper, development checkout.
@@ -921,7 +887,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hotkey_status,
             open_chat,
-            inject_into_chat,
             sidecar_status,
             convert_document,
             pending_approvals,

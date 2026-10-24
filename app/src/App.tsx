@@ -6,7 +6,6 @@ import { confirm } from "@tauri-apps/plugin-dialog";
 
 import Documents from "./Documents";
 import Access from "./Access";
-import Launcher from "./Launcher";
 import Notes from "./Notes";
 import Pomodoro from "./Pomodoro";
 import type { AuditEntry, PendingApproval } from "./lib/types";
@@ -29,7 +28,6 @@ const TABS = [
   { id: "timer", label: "Timer" },
   { id: "docs", label: "Docs" },
   { id: "notes", label: "Notes" },
-  { id: "apps", label: "Apps" },
   { id: "access", label: "Access" },
   { id: "log", label: "Log" },
 ] as const;
@@ -286,7 +284,6 @@ function App() {
           />
         )}
         {tab === "notes" && <Notes />}
-        {tab === "apps" && <Launcher />}
         {tab === "access" && <Access />}
 
         {tab === "log" && (
