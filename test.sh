@@ -70,16 +70,22 @@ export PIP_ALLOWED_FOLDERS="$(pwd)/tests/samples"
 (cd mcp-server && npm run dev >/tmp/pip-test-mcp.log 2>&1 &)
 
 ready=0
-for _ in $(seq 1 60); do
+waited=0
+# 15 seconds was too tight: `tsx` boots in about a second on an idle machine and
+# took over a minute at load average 10, which reads as "the server is broken"
+# when the real problem is that the box is busy. Wait a full minute, and say how
+# long we waited when it fails.
+for _ in $(seq 1 120); do
   if curl -sf "$PIP_MCP_BASE/health" >/dev/null 2>&1; then
     ready=1
     break
   fi
-  sleep 0.25
+  sleep 0.5
+  waited=$((waited + 1))
 done
 
 if [ "$ready" != "1" ]; then
-  echo "the test server did not come up — see /tmp/pip-test-mcp.log"
+  echo "the test server did not come up after ${waited} half-seconds — see /tmp/pip-test-mcp.log"
   tail -20 /tmp/pip-test-mcp.log
   fail "mcp-server tool tests"
 else

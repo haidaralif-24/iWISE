@@ -59,12 +59,22 @@ expect_contains "$OUT" "outside the folders the user shared" "refusal explains w
 echo
 echo "== 4. allowlist: traversal and symlink tricks are refused =="
 mkdir -p "$NOTES_DIR/sub"
-ln -sfn /etc "$NOTES_DIR/escape" 2>/dev/null
-OUT=$(call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"'"$HOME"'/.pip/notes/escape/passwd"}}}' | strip)
+# The link must live where the request points. This used to build it in the
+# temp notes folder but read from ~/.pip/notes, so the assertion passed because
+# the path did not exist — not because the escape was refused.
+rm -f "$NOTES_DIR/escape"
+ln -sfn /etc "$NOTES_DIR/escape"
+OUT=$(call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"'"$NOTES_DIR"'/escape/passwd"}}}' | strip)
 expect_contains "$OUT" "Not allowed" "symlink pointing out of the allowlist is refused"
+expect_contains "$OUT" "outside the folders the user shared" "refusal is containment, not a missing file"
 
-OUT=$(call '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"'"$REPO"'/tests/samples/../../../../etc/passwd"}}}' | strip)
+# Enough `..` to clamp at the filesystem root, so this lands on /etc/passwd no
+# matter how deep the checkout sits. The old path used four and resolved to
+# Documents/etc/passwd, which does not exist — the test passed because of the
+# missing file, not because containment held.
+OUT=$(call '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"'"$REPO"'/tests/samples/../../../../../../../../etc/passwd"}}}' | strip)
 expect_contains "$OUT" "Not allowed" "../ traversal is refused"
+expect_contains "$OUT" "outside the folders the user shared" "traversal is refused by containment"
 
 OUT=$(call '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"read_document_as_markdown","arguments":{"path":"https://example.com/x.pdf"}}}' | strip)
 expect_contains "$OUT" "Not allowed" "http(s) URI is refused"
