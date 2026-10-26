@@ -23,8 +23,8 @@ application permissions. A Pomodoro timer and quick notes sit alongside them.
 Pip needs no API key and no local model. The full path from document to tool call was verified on a
 free Claude account through a public tunnel, and adversarial testing closed path traversal and
 unauthenticated access while exposing an approval bypass that a green test suite had missed. A
-separate measurement showed that conversion alone does not reduce token cost; page selection does,
-cutting a six-page PDF from 2,067 tokens to 686.
+separate measurement showed that conversion alone makes a prompt 12% larger, and that selecting two
+pages instead of six cuts it by 63%.
 
 **Keywords:** AI assistant, Model Context Protocol, local tool access, permission boundary, Tauri
 

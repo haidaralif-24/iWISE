@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pip — iWISE Regional Final 2026 — display poster</title>
+<!--
+  DRAFT POSTER — not the print file.
+  True size: 1569 mm wide x 2100 mm high (157 x 210 cm), from the organiser deck,
+  slides 2 and 7. Slide 8 says two 100 cm panels at 90 degrees instead; we build to
+  the smaller number because you can trim a roll, you cannot add to it.
+
+  Everything is in mm and pt so what you see here is the real physical size.
+  Body text is 32 pt — the deck's floor is Calibri Body 22 pt.
+  White background is deliberate: this goes to a printer, not a screen.
+-->
+<style>
+  :root {
+    --w: 1569mm;
+    --h: 2100mm;
+    --pad: 55mm;
+    --gap: 26mm;
+
+    /* Sampled from INS_Logo_Icon.png */
+    --navy: #272E57;
+    --gold: #BBA74F;
+    --grey: #E8E8E8;
+
+    --ink: #1F2547;
+    --dim: #5A6076;
+    --accent: var(--navy);
+    --rule: var(--grey);
+    --tint: #F5F5F7;
+    --warn: #8A4B12;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #2b2f36;
+    font-family: Calibri, Carlito, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 16px;
+    background: #11141a; color: #cfd6e0;
+    font: 13px/1.3 -apple-system, system-ui, sans-serif;
+    z-index: 10;
+  }
+  #bar strong { color: #fff; font-weight: 600; }
+  #bar button {
+    background: #263041; color: #cfd6e0; border: 1px solid #3a465c;
+    border-radius: 5px; padding: 5px 11px; cursor: pointer;
+    font: inherit;
+  }
+  #bar button:hover { background: #32405a; }
+
+  #stage { padding: 60px 0 60px; }
+
+  .poster {
+    width: var(--w);
+    height: var(--h);
+    background: #fff;
+    color: var(--ink);
+    margin: 0 auto;
+    padding: var(--pad);
+    display: flex;
+    flex-direction: column;
+    transform-origin: top center;
+    font-size: 32pt;
+    line-height: 1.38;
+  }
+
+  /* ---------------------------------------------------------------- header */
+
+  .head {
+    border-bottom: 7mm solid var(--gold);
+    padding-bottom: 14mm;
+    margin-bottom: 16mm;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20mm;
+    align-items: end;
+  }
+
+  .eyebrow {
+    font-size: 26pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  h1 {
+    font-size: 230pt;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    margin: 6mm 0 8mm;
+    color: var(--navy);
+  }
+
+  .tagline {
+    font-size: 44pt;
+    line-height: 1.24;
+    color: var(--dim);
+    max-width: 900mm;
+  }
+
+  .who { text-align: right; }
+
+  .names {
+    font-size: 34pt;
+    font-weight: 700;
+    line-height: 1.34;
+  }
+
+  .country {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 8mm; margin-top: 8mm;
+    font-size: 30pt; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .flag {
+    width: 60mm; height: 40mm;
+    border: 0.6mm solid #9aa4b0;
+    display: flex; flex-direction: column;
+    flex: 0 0 auto;
+  }
+  .flag .red { flex: 1; background: #e11d2e; }
+  .flag .white { flex: 1; background: #fff; }
+
+  .category {
+    margin-top: 6mm;
+    font-size: 24pt;
+    color: var(--dim);
+  }
+
+  /* ----------------------------------------------------------------- body */
+
+  .cols {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--gap);
+    align-items: start;
+  }
+
+  /* Space-between so slack is spread down the column instead of pooling at the
+     bottom of a 2.1 m sheet. If content ever overflows, it spills visibly rather
+     than being clipped — a silent truncation is the one failure worth avoiding. */
+  .col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14mm;
+    height: 100%;
+  }
+
+  section {
+    break-inside: avoid;
+  }
+
+  h2 {
+    font-size: 46pt;
+    line-height: 1.15;
+    color: var(--navy);
+    padding-bottom: 5mm;
+    margin-bottom: 7mm;
+    border-bottom: 2mm solid var(--gold);
+    letter-spacing: -0.01em;
+  }
+
+  p { margin-bottom: 6mm; }
+  p:last-child { margin-bottom: 0; }
+
+  ul { list-style: none; }
+  li {
+    position: relative;
+    padding-left: 12mm;
+    margin-bottom: 5mm;
+  }
+  li::before {
+    content: "";
+    position: absolute;
+    left: 2mm; top: 4.6mm;
+    width: 4mm; height: 4mm;
+    background: var(--gold);
+  }
+
+  .lead { font-size: 34pt; }
+
+  .small { font-size: 26pt; line-height: 1.34; }
+  .dim { color: var(--dim); }
+
+  /* --------------------------------------------------------------- tables */
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 25pt;
+    line-height: 1.28;
+  }
+  caption {
+    text-align: left;
+    font-size: 24pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding-bottom: 3mm;
+  }
+  th {
+    text-align: left;
+    font-size: 23pt;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+    border-bottom: 1mm solid var(--rule);
+    padding: 3mm 4mm 3mm 0;
+    font-weight: 700;
+  }
+  td {
+    padding: 3.4mm 4mm 3.4mm 0;
+    border-bottom: 0.5mm solid var(--rule);
+    vertical-align: top;
+  }
+  td:last-child, th:last-child { padding-right: 0; }
+
+  .pass { color: #2F6B4F; font-weight: 700; white-space: nowrap; }
+  .part { color: #9A7B22; font-weight: 700; white-space: nowrap; }
+  .fail { color: #8E2A2A; font-weight: 700; white-space: nowrap; }
+  .open { color: var(--warn); font-weight: 700; white-space: nowrap; }
+
+  .fill {
+    background: #fdf3d8;
+    outline: 0.8mm dashed #c99b32;
+    outline-offset: -1mm;
+    color: #7a5a12;
+    font-weight: 700;
+    font-size: 21pt;
+    padding: 1mm 2mm;
+    white-space: nowrap;
+  }
+
+  /* ---------------------------------------------------------------- chart */
+
+  .chart { margin-top: 4mm; }
+  .chart .row {
+    display: grid;
+    grid-template-columns: 84mm 1fr 52mm;
+    align-items: center;
+    gap: 5mm;
+    margin-bottom: 5mm;
+    font-size: 25pt;
+  }
+  .chart .bar {
+    height: 16mm;
+    background: var(--navy);
+  }
+  .chart .bar.alt { background: var(--gold); }
+  .chart .val { text-align: right; font-weight: 700; }
+  .chart .cap { font-size: 22pt; color: var(--dim); margin-top: 2mm; }
+
+  /* ---------------------------------------------------------------- chain */
+
+  .chain { counter-reset: step; font-size: 25pt; }
+  .chain li {
+    counter-increment: step;
+    padding-left: 15mm;
+    margin-bottom: 3.6mm;
+  }
+  .chain li::before {
+    content: counter(step);
+    background: none;
+    color: var(--accent);
+    font-weight: 700;
+    width: auto; height: auto;
+    top: 0; left: 0;
+    font-size: 25pt;
+  }
+
+  /* --------------------------------------------------------------- blocks */
+
+  .callout {
+    background: var(--navy);
+    color: #fff;
+    border-left: 6mm solid var(--gold);
+    padding: 9mm 11mm;
+    font-size: 28pt;
+    line-height: 1.34;
+  }
+
+  .quote {
+    font-size: 34pt;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .foot {
+    margin-top: 14mm;
+    padding-top: 8mm;
+    border-top: 2mm solid var(--gold);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 22pt;
+    color: var(--dim);
+  }
+
+  .foot .repo { font-family: ui-monospace, Menlo, monospace; font-size: 21pt; }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <strong>Draft poster</strong>
+  <span>1569 &times; 2100 mm &nbsp;·&nbsp; body 32 pt &nbsp;·&nbsp; Calibri</span>
+  <button id="fit">Fit to width</button>
+  <button id="actual">Actual size</button>
+  <span id="zoom" style="opacity:.6"></span>
+</div>
+
+<div id="stage">
+<div class="poster" id="poster">
+
+  <!-- ============================================================ header -->
+  <header class="head">
+    <div>
+      <div class="eyebrow">iWISE Regional Final 2026 · Yogyakarta</div>
+      <h1>Pip</h1>
+      <div class="tagline">A lightweight AI assistant window with safe local tool access</div>
+    </div>
+    <div class="who">
+      <div class="names">
+        Haidar Ali Fawwaz Nasirodin<br>
+        Faiq Abiyyu Asyam<br>
+        Avandreda Giano Bestafa
+      </div>
+      <div class="country"><span>Indonesia</span><span class="flag"><span class="red"></span><span class="white"></span></span></div>
+      <div class="category">iTECH — Software / Programming</div>
+    </div>
+  </header>
+
+  <!-- ============================================================== body -->
+  <div class="cols">
+
+    <!-- ------------------------------------------------------- column 1 -->
+    <div class="col">
+
+      <section>
+        <h2>Research Question</h2>
+        <p class="lead">Can a free-tier cloud AI chat service be given controlled, auditable access to a student's local files using only local components — and how much of the resulting risk surface can a user-controlled permission layer close?</p>
+      </section>
+
+      <section>
+        <h2>Aim</h2>
+        <p>To build a desktop window that reuses the AI account a student already has, and gives that AI access to their own files under a boundary the student controls.</p>
+        <p>The artefact is then evaluated on three axes: <strong>does it function</strong>, <strong>what does it cost</strong>, and <strong>what does it stop</strong>. A working demo alone answers none of them.</p>
+      </section>
+
+      <section>
+        <h2>Hypothesis / Engineering Goal</h2>
+        <table>
+          <tr><td><strong>H1 · Capability</strong><br>A free account can call a local tool server, with no API key and no local model.</td><td class="pass">Supported</td></tr>
+          <tr><td><strong>H2 · Boundary</strong><br>A user-controlled permission layer closes most of the risk surface.</td><td class="part">Partly</td></tr>
+          <tr><td><strong>H3 · Efficiency</strong><br>Converting a document to Markdown reduces token cost.</td><td class="fail">Rejected</td></tr>
+          <tr><td><strong>H3 revised</strong><br>Reading fewer pages reduces token cost. Conversion was the control that isolated it.</td><td class="pass">Supported</td></tr>
+        </table>
+        <p class="small dim" style="margin-top:6mm">H3 was written first and is reported as rejected. The rejection is the most useful result here: it stops the next student building a converter expecting a saving.</p>
+      </section>
+
+      <section>
+        <h2>Background Research</h2>
+        <ul>
+          <li><strong>Model Context Protocol</strong> — an open standard for exposing tools to an AI client over a transport it already speaks. It is what lets a cloud chat service call a process on the user's own machine.</li>
+          <li><strong>MarkItDown</strong> — converts PDF, DOCX, PPTX and XLSX to Markdown. Chosen because conversion is solved and the interesting problem is the permission boundary.</li>
+          <li><strong>Tauri</strong> — a Rust shell rendering the system webview. Chosen over Electron so that spawning a process is an explicit, reviewable command.</li>
+        </ul>
+        <p class="small dim">Existing AI desktop clients give an assistant file access, but the boundary is set by the vendor and the account is normally paid. The gap is the student on a free tier who wants both the access and the control.</p>
+      </section>
+
+    </div>
+
+    <!-- ------------------------------------------------------- column 2 -->
+    <div class="col">
+
+      <section>
+        <h2>Methods / Procedures</h2>
+        <p>Built in three tiers over seven days, so each tier is a complete project if time runs out. The riskiest unknown — whether a free account can reach a local server at all — was tested on day two, before the document pipeline was started.</p>
+        <p><strong>Evaluation, three axes.</strong> Function: the chain decomposed into seven links, each recorded as pass, fail or untested, and a link counts only when observed running. Safety: adversarial testing, where a case passes only if the attempt is refused <em>and</em> the refusal is logged. Cost: marginal cost to the student, with token efficiency as one sub-metric.</p>
+      </section>
+
+      <section>
+        <h2>Results</h2>
+        <table>
+          <caption>The chain, link by link — 6 of 7 observed</caption>
+          <tr><td>Drag a file onto the Docs tab</td><td class="pass">Pass</td></tr>
+          <tr><td>Spawn the converter process</td><td class="pass">Pass</td></tr>
+          <tr><td>MarkItDown returns a JSON envelope</td><td class="pass">Pass</td></tr>
+          <tr><td>The preview renders</td><td class="pass">Pass</td></tr>
+          <tr><td>Page selection updates the counter</td><td class="pass">Pass</td></tr>
+          <tr><td>The AI calls a tool and gets a result</td><td class="pass">Pass</td></tr>
+          <tr><td>A write is blocked, approved, executed, logged</td><td class="open">Pending</td></tr>
+        </table>
+        <p class="small dim" style="margin-top:5mm">The last link is wired and unit-tested on both halves — the server asks, the app answers — but the two have not yet been watched talking in one run. It is marked pending rather than passed.</p>
+      </section>
+
+      <section>
+        <table>
+          <caption>Nine attempts to break the boundary</caption>
+          <tr><td>Relative traversal <code>../../etc/passwd</code></td><td class="pass">Refused</td></tr>
+          <tr><td>Absolute path outside the allowlist</td><td class="pass">Refused</td></tr>
+          <tr><td>No credentials, empty configured token</td><td class="pass">Refused</td></tr>
+          <tr><td>Unauthenticated request through the tunnel</td><td class="pass">Refused</td></tr>
+          <tr><td>Read a folder never added to the allowlist</td><td class="pass">Refused</td></tr>
+          <tr><td>Write with no approval decision</td><td class="pass">Held</td></tr>
+          <tr><td>Symlink pointing out of an allowed folder</td><td class="pass">Refused</td></tr>
+          <tr><td>A note read back as an instruction</td><td class="pass">Fenced</td></tr>
+          <tr><td>Folder swapped between check and use</td><td class="open">Open</td></tr>
+        </table>
+        <p class="small dim" style="margin-top:5mm">Case 3 failed on first run: an empty token compared equal to a missing header, so a request with no credentials returned a result. It was reproduced, fixed, and the same bypass was then found live on the main branch.</p>
+      </section>
+
+      <section>
+        <h2>Data Graph / Table</h2>
+        <div class="chart">
+          <div class="row">
+            <span>Paste by hand</span>
+            <span class="bar alt" style="width:89%"></span>
+            <span class="val">1,844</span>
+          </div>
+          <div class="row">
+            <span>Converted, whole</span>
+            <span class="bar alt" style="width:100%"></span>
+            <span class="val">2,067</span>
+          </div>
+          <div class="row">
+            <span>Pages 2–3 only</span>
+            <span class="bar" style="width:33%"></span>
+            <span class="val">686</span>
+          </div>
+          <div class="cap">Tokens sent for one six-page worksheet. Converting alone makes the prompt 12% <em>larger</em>; selecting two pages cuts it by 63%.</div>
+        </div>
+        <table style="margin-top:7mm">
+          <caption>Corpus — one of ten measured <span class="fill">8 rows to fill</span></caption>
+          <tr><th>Document</th><th>Type</th><th>Raw</th><th>Selected</th><th>ms</th></tr>
+          <tr><td>Buoyancy worksheet</td><td>PDF · 6 pp</td><td>2,067</td><td>686</td><td class="fill">—</td></tr>
+          <tr><td colspan="5" class="small dim">Nine more from the team's own coursework: PDF, DOCX, PPTX, XLSX, one scanned PDF.</td></tr>
+        </table>
+      </section>
+
+    </div>
+
+    <!-- ------------------------------------------------------- column 3 -->
+    <div class="col">
+
+      <section>
+        <h2>Discussion of Results</h2>
+        <p><strong>The saving is not in the conversion.</strong> MarkItDown output is within a few percent of the raw text, and usually slightly larger. What saves is sending two pages instead of six — and that is only possible because the file never leaves the machine. The model is given a path, not a copy, so it asks for the pages it needs.</p>
+        <p><strong>Two failures were found by reading, not by testing.</strong> The empty token, and a search path that returned unfenced text. Both passed a green suite. That is the answer to the secondary question, and it is why the end-to-end run matters more than the tests.</p>
+      </section>
+
+      <section>
+        <h2>Errors and Limitation Gaps</h2>
+        <ul>
+          <li><strong>No delivery.</strong> Pip prepares the prompt; the paste is manual. The automatic paste depended on the chat vendor's markup and could not be verified without a live account, so it was removed rather than risked.</li>
+          <li><strong>Tier 3 needs the internet.</strong> The chat client is cloud-hosted, so the tunnel must be up. No local-only client was built.</li>
+          <li><strong>No user study.</strong> The survey instrument exists and was not administered. No claim about usability is made.</li>
+          <li><strong>macOS only.</strong> Windows path handling is untested.</li>
+          <li><strong>Open by design.</strong> A folder can be swapped between validation and conversion. Closing it needs OS-level isolation, not JavaScript.</li>
+          <li><strong>Not distributable.</strong> The app runs from a checkout. Packaging is four phases of work, listed below.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Conclusion</h2>
+        <div class="callout">
+          A student on a free tier can have agent-like access to their own files without paying for it — with a boundary they set, can revoke, and can read back afterwards.
+        </div>
+        <p style="margin-top:7mm">The saving comes from reading less, not from converting better. And the boundary is not decoration: it is the thing that makes scoped reading safe enough to allow.</p>
+      </section>
+
+      <section>
+        <h2>Future Research</h2>
+        <ul>
+          <li><strong>Package it.</strong> Bundle the converter and the tool server, add a first-run panel, sign it.</li>
+          <li><strong>Administer the survey.</strong> Ten to twenty students, timed task, before and after.</li>
+          <li><strong>Scanned PDFs.</strong> Currently return zero pages; needs OCR.</li>
+          <li><strong>Windows</strong>, and a per-tool rate limit.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>References</h2>
+        <ul class="small">
+          <li>Anthropic. <em>Model Context Protocol specification.</em> modelcontextprotocol.io</li>
+          <li>Microsoft. <em>MarkItDown.</em> github.com/microsoft/markitdown</li>
+          <li>Tauri Contributors. <em>Tauri 2 documentation.</em> tauri.app</li>
+          <li>Model Context Protocol. <em>Authorization specification.</em></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Acknowledgements</h2>
+        <p class="small">Supervising teacher <span class="fill">name</span>, for the print run and the deadline. Our families, for the laptops. The MarkItDown, Tauri and MCP maintainers, whose work this stands on.</p>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ footer -->
+  <div class="foot">
+    <span>iWISE Regional Final 2026 · SMA Global Darussalam Academy, Sleman, Yogyakarta · 29 October – 1 November</span>
+    <span class="repo">github.com/haidaralif-24/iWISE</span>
+  </div>
+
+</div>
+</div>
+
+<script>
+  // The poster is laid out at true physical size (1569 mm wide). Scale it to the
+  // window so it can be reviewed; "Actual size" is for checking type at 100%.
+  const poster = document.getElementById("poster");
+  const zoomLabel = document.getElementById("zoom");
+  const TRUE_WIDTH_PX = 1569 / 25.4 * 96; // 5929 px at 96 dpi
+
+  function fit() {
+    const scale = Math.min(1, (window.innerWidth - 48) / TRUE_WIDTH_PX);
+    poster.style.transform = `scale(${scale})`;
+    poster.style.marginBottom = `${(scale - 1) * poster.offsetHeight}px`;
+    zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+  }
+
+  function actual() {
+    poster.style.transform = "none";
+    poster.style.marginBottom = "0";
+    zoomLabel.textContent = "100%";
+  }
+
+  document.getElementById("fit").onclick = fit;
+  document.getElementById("actual").onclick = actual;
+  window.addEventListener("resize", fit);
+  fit();
+</script>
+
+</body>
+</html>

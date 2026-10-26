@@ -32,10 +32,10 @@ Drag `tests/samples/Assignment_1…Buoyancy….pdf` onto the Docs tab.
   686** — and the prompt now carries `[p.2]` and `[p.3]` markers, so the model can say which page it
   read. Six of those tokens are the markers.
 
-*Say the honest version:* "Converting to Markdown on its own does not save tokens — it is about the
-same size as the raw text, and actually slightly larger. What saves tokens is choosing the two
-pages that matter and editing out the rest. The counter is there so you can see that before you
-copy, not after."
+*Say the honest version:* "Converting to Markdown on its own does not save tokens — it makes the
+prompt 12% **bigger**, because structure costs characters. Pasting this by hand would be 1,844
+tokens; converting the whole thing is 2,067. What saves is choosing the two pages that matter. The
+counter is there so you can see that before you copy, not after."
 
 Pick a prompt template from the dropdown, edit the text if you want, then press **⌘↩** to copy the
 prompt and paste it into the chat. Say why it is manual: *"We removed the automatic paste. It depended
@@ -88,8 +88,8 @@ workflow handled locally."
 
 | Do not say | Say instead |
 |---|---|
-| "It saves you 67% of your tokens" | "Selecting the two pages you need cuts this document from 2,067 tokens to 686" |
-| "It converts to Markdown to save tokens" | "It converts to Markdown so the model gets structure, and the counter lets you trim before copying" |
+| "It saves you 63% of your tokens" | "Selecting the two pages you need cuts this document from 1,844 tokens to 686" |
+| "It converts to Markdown to save tokens" | "Converting makes it 12% bigger — the counter shows you that, and then you trim" |
 | "The AI can read your files" | "The AI can read files in folders you allow, and only after you approve anything it writes" |
 | "Works with scanned PDFs" | "Scanned PDFs are not tested yet — that is the next thing to build" |
 | "It works offline" | "Conversion runs on this laptop; the only thing that leaves it is what you paste" |
