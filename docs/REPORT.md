@@ -76,7 +76,8 @@ construction:
   separate webview that is deliberately granted no application permissions, and carries a Pomodoro  
   timer and quick notes so that it is pleasant enough to leave open.
 - **The document pipeline.** A Python sidecar wrapping Microsoft's MarkItDown, which converts PDF,  
-  DOCX, PPTX and XLSX to Markdown so the user can preview, edit and select pages before the prompt is  
+  DOCX, PPTX and XLSX to Markdown so the user can read it rendered, edit the source and select pages
+  before the prompt is  
   assembled. It is one of the seven tools, and the smallest of the three layers in what it contributes.
 
 ---
@@ -180,7 +181,8 @@ The application was built in three tiers over seven days, so that each tier woul
 project if time ran out:
 
 1. **Tier 1** — the window: always-on-top, global hotkey, Pomodoro timer, quick notes.
-2. **Tier 2** — the document pipeline: drag-and-drop, local conversion, editable preview, page  
+2. **Tier 2** — the document pipeline: drag-and-drop, local conversion, rendered Markdown preview
+   with an editable source, page  
    selection, token counter.
 3. **Tier 3** — the tool layer: seven MCP tools, folder allowlist, approval prompt, audit log.
 
@@ -428,6 +430,14 @@ generate two kinds of rendered page. It cannot delete, rename, execute a command
 allowlist, fetch a URL, or write anywhere except one folder. This is deliberately small. A larger
 write surface would make a better demonstration and a worse system, and the project's claim is
 specifically that a small boundary is more useful to a student than a large capability.
+
+The same reasoning applies inside the window. The document preview renders Markdown rather than
+showing a text box, and that rendering is sanitised. It has to be: the main window can call Tauri
+commands, so a script arriving inside a converted document would be code execution against the
+application, not merely a dirty page. Images are stripped from the preview for a related reason — a
+document could otherwise make the window fetch a remote URL and tell whoever wrote it that the file
+had been opened. A permission boundary that stops at the tool layer and ignores the renderer is not a
+boundary.
 
 ### 8.4 Delivery was removed on purpose
 

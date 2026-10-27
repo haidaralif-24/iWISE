@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 import { mergeParts, promptHeader, tidy } from "./lib/markdown";
 import {
@@ -63,6 +65,7 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
   const [notice, setNotice] = useState<string | null>(null);
   const [mergeAll, setMergeAll] = useState(false);
   const [sidecar, setSidecar] = useState<SidecarStatus | null>(null);
+  const [view, setView] = useState<"preview" | "edit">("preview");
 
   // The instruction goes above the document in the prompt. It is kept separate
   // from the document body so both stay editable.
@@ -230,6 +233,25 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
   const percent = savedPercent(baseline, sending.tokens);
 
   /**
+   * Rendered preview of the Markdown, sanitised before it touches the DOM.
+   *
+   * Sanitising is not cosmetic here. This window can call Tauri commands, so a
+   * script that arrived inside a converted document would be code execution
+   * against the app rather than a dirty page. Images are dropped as well: a
+   * document could otherwise make the preview fetch a remote URL, which tells
+   * whoever wrote it that the file was opened.
+   */
+  const rendered = useMemo(() => {
+    const source = active?.text ?? "";
+    if (!source.trim()) return "";
+    const html = marked.parse(source, { async: false }) as string;
+    return DOMPurify.sanitize(html, {
+      FORBID_TAGS: ["img", "iframe", "object", "embed", "style", "link", "form", "input"],
+      FORBID_ATTR: ["style", "srcset", "ping"],
+    });
+  }, [active?.text]);
+
+  /**
    * ⌘↩ puts the prompt on the clipboard. There is no button: the preview is
    * already selectable, and a shortcut is one less thing to break.
    *
@@ -393,21 +415,41 @@ export default function Documents({ dragging, dropped, onDroppedHandled }: Props
       {active && !mergeAll && (
         <>
           <div className="editor-head">
-            <span className="muted">Preview — edit, then ⌘↩ to copy</span>
-            <button
-              className="link"
-              onClick={() => updateText(active.id, tidy(active.original))}
-              title="Undo your edits"
-            >
-              reset
-            </button>
+            <span className="muted">
+              {view === "preview" ? "Rendered preview" : "Markdown source"} — ⌘↩ copies
+            </span>
+            <span className="editor-tools">
+              <button
+                className={view === "preview" ? "link on" : "link"}
+                onClick={() => setView("preview")}
+              >
+                preview
+              </button>
+              <button
+                className={view === "edit" ? "link on" : "link"}
+                onClick={() => setView("edit")}
+              >
+                edit
+              </button>
+              <button
+                className="link"
+                onClick={() => updateText(active.id, tidy(active.original))}
+                title="Undo your edits"
+              >
+                reset
+              </button>
+            </span>
           </div>
-          <textarea
-            className="editor"
-            value={active.text}
-            spellCheck={false}
-            onChange={(event) => updateText(active.id, event.currentTarget.value)}
-          />
+          {view === "preview" ? (
+            <div className="md" dangerouslySetInnerHTML={{ __html: rendered }} />
+          ) : (
+            <textarea
+              className="editor"
+              value={active.text}
+              spellCheck={false}
+              onChange={(event) => updateText(active.id, event.currentTarget.value)}
+            />
+          )}
         </>
       )}
 

@@ -71,7 +71,8 @@ both the access and the control.
 Incremental, in three tiers, so each tier is a complete project if time runs out:
 
 1. **Tier 1** — always-on-top window, global hotkey, Pomodoro timer, quick notes.
-2. **Tier 2** — drag-and-drop document, local conversion to Markdown, editable preview, page
+2. **Tier 2** — drag-and-drop document, local conversion to Markdown, rendered Markdown preview
+   with an editable source, page
    selection, token counter.
 3. **Tier 3** — local MCP server exposing seven tools (`list_files`, `read_document_as_markdown`,
    `create_note`, `search_notes`, `save_digest`, `save_quiz`, `reveal_secret`), folder allowlist,
