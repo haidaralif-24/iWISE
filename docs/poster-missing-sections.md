@@ -118,7 +118,7 @@ with the third one highlighted.
 
 **Target: ~7 cm tall, column 3**
 
-> Supervising teacher [NAME], for the print run and the deadline. Our families, for the laptops. The
+> Supervising teacher Muhammad Hasan, Ph.D., for the print run and the deadline. Our families, for the laptops. The
 > MarkItDown, Tauri and MCP maintainers, whose work this stands on.
 
 ---

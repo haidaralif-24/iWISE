@@ -8,7 +8,7 @@
 | **Competition** | iWISE Regional Final, Yogyakarta, 29 October – 1 November 2026 |
 | **Participants** | Haidar Ali Fawwaz Nasirodin · Faiq Abiyyu Asyam · Avandreda Giano Bestafa |
 | **Country** | Indonesia |
-| **Supervising teacher** | [NAME] |
+| **Supervising teacher** | Muhammad Hasan, Ph.D. |
 | **Repository** | github.com/haidaralif-24/iWISE |
 
 ---
