@@ -2,78 +2,82 @@
 
 **Project report — iWISE Regional Final 2026**
 
-| | |
-|---|---|
-| **Category** | iTECH — Software / Programming |
-| **Competition** | iWISE Regional Final, Yogyakarta, 29 October – 1 November 2026 |
-| **Participants** | Haidar Ali Fawwaz Nasirodin · Faiq Abiyyu Asyam · Avandreda Giano Bestafa |
-| **Country** | Indonesia |
-| **Supervising teacher** | Muhammad Hasan, Ph.D. |
-| **Repository** | github.com/haidaralif-24/iWISE |
+|                         |                                                                           |
+| ----------------------- | ------------------------------------------------------------------------- |
+| **Category**            | iTECH — Software / Programming                                            |
+| **Competition**         | iWISE Regional Final, Yogyakarta, 29 October – 1 November 2026            |
+| **Participants**        | Haidar Ali Fawwaz Nasirodin · Faiq Abiyyu Asyam · Avandreda Giano Bestafa |
+| **Country**             | Indonesia                                                                 |
+| **Supervising teacher** | Muhammad Hasan, Ph.D.                                                     |
+| **Repository**          | github.com/haidaralif-24/iWISE                                            |
 
 ---
 
 ## Abstract
 
-Students use AI chat daily, yet giving it their own documents is still manual. They copy text out of
-PDFs, Word files and slides, and the broken formatting burns free-tier limits. The AI cannot see
-their files, so every question needs pasted context. Autonomous agents would remove that friction,
+Students use AI chat daily, yet giving it their own documents is still manual. They copy text out of  
+PDFs, Word files and slides, and the broken formatting burns free-tier limits. The AI cannot see  
+their files, so every question needs pasted context. Autonomous agents would remove that friction,  
 but they require paid API keys or capable hardware, which many students do not have.
 
-Pip is a small always-on-top desktop window, built with Tauri and TypeScript, that opens the AI chat
-service a user already has beside a set of local tools. A local Model Context Protocol server gives
-the AI controlled access to the user's files, guarded by a folder allowlist with path
-canonicalisation, native confirmation prompts before any write, authenticated connections, output
-size limits and an append-only audit log, while the chat webview is deliberately granted no
-application permissions. A local pipeline built on Microsoft's MarkItDown converts PDF, DOCX, PPTX
+Pip is a small always-on-top desktop window, built with Tauri and TypeScript, that opens the AI chat  
+service a user already has beside a set of local tools. A local Model Context Protocol server gives  
+the AI controlled access to the user's files, guarded by a folder allowlist with path  
+canonicalisation, native confirmation prompts before any write, authenticated connections, output  
+size limits and an append-only audit log, while the chat webview is deliberately granted no  
+application permissions. A local pipeline built on Microsoft's MarkItDown converts PDF, DOCX, PPTX  
 and XLSX files and lets the user preview and edit the Markdown.
 
-Pip needs no API key and no local model. The full path from document to tool call was verified on a
-free Claude account through a public tunnel, and adversarial testing closed path traversal and
-unauthenticated access while exposing an approval bypass that a green test suite had missed. A
-separate measurement showed that conversion alone does not reduce token cost; page selection does,
+Pip needs no API key and no local model. The full path from document to tool call was verified on a  
+free Claude account through a public tunnel, and adversarial testing closed path traversal and  
+unauthenticated access while exposing an approval bypass that a green test suite had missed. A  
+separate measurement showed that conversion alone does not reduce token cost; page selection does,  
 cutting a six-page PDF from 2,067 tokens to 686.
 
 ---
 
 ## 1. Introduction
 
-A student writing an essay has three things on their laptop: a document they need to think about, an
-AI chat window they already use, and no convenient way to connect the two. The connection is made by
-hand — select all, copy, paste — and the result is usually worse than the original: PDF line breaks
-become hard wraps, tables become noise, and the model spends part of a limited free tier reading
-layout instead of content.
+A student's AI chat can answer almost anything except the questions that need their own files. It  
+cannot see the essay being written, the notes from last week, or the worksheet in front of them.  
+Everything has to be pasted in by hand, and pasting is where the work goes: PDF line breaks become  
+hard wraps, tables become noise, and part of a limited free tier is spent reading layout instead of  
+content.
 
-The obvious fix is an agent: software that gives the model the ability to read files itself. That
-fix exists, and it is out of reach. Agent tooling assumes either an API key billed per token or a
-local model large enough to run on a capable machine. A seventeen-year-old with a school laptop and a
-free account has neither. The capability gap is therefore not technical in origin; it is a pricing
+The obvious fix is an agent: software that gives the model the ability to read files itself. That  
+fix exists, and it is out of reach. Agent tooling assumes either an API key billed per token or a  
+local model large enough to run on a capable machine. A seventeen-year-old with a school laptop and a  
+free account has neither. The capability gap is therefore not technical in origin; it is a pricing  
 and hardware gap, and it falls on exactly the users who would benefit most.
 
-Pip is an attempt to close that gap without asking anyone to pay. The design decision that shapes
-everything else is this: **do not bring the model to the files, bring the files to the model on
-request.** The model is given a *handle* — a path it may ask about — rather than a *copy*. A small
-server on the user's own machine answers those requests, and a permission layer decides which
+Pip is an attempt to close that gap without asking anyone to pay. The design decision that shapes  
+everything else is this: **do not bring the model to the files, bring the files to the model on  
+request.** The model is given a *handle* — a path it may ask about — rather than a *copy*. A small  
+server on the user's own machine answers those requests, and a permission layer decides which  
 requests are allowed.
 
-This has a consequence worth stating early, because it is the project's central claim: the file never
-moves. Only the text the model explicitly asks for enters the conversation. That is a different
-proposition from uploading a document, where a copy is stored somewhere the user does not control.
-It is also the reason page-level reading is possible at all, and therefore the reason any token
+This has a consequence worth stating early, because it is the project's central claim: the file never  
+moves. Only the text the model explicitly asks for enters the conversation. That is a different  
+proposition from uploading a document, where a copy is stored somewhere the user does not control.  
+It is also the reason page-level reading is possible at all, and therefore the reason any token  
 saving exists.
 
 ### 1.1 What was built
 
-A macOS desktop application in three layers:
+A macOS desktop application in three layers, listed in order of importance rather than order of  
+construction:
 
-- **The window.** A Tauri application: a Rust backend, a TypeScript frontend rendered in the system
-  webview, always-on-top, summoned by a global hotkey. It hosts the user's existing chat service in a
-  separate webview that is deliberately granted no application permissions.
-- **The document pipeline.** A Python sidecar wrapping Microsoft's MarkItDown, which converts PDF,
-  DOCX, PPTX and XLSX to Markdown. The user previews, edits and selects pages before the prompt is
-  assembled.
-- **The tool layer.** A local Model Context Protocol server exposing seven tools, behind a folder
-  allowlist, an approval prompt for anything that writes, and an append-only audit log.
+- **The tool layer.** A local Model Context Protocol server exposing seven tools — list a folder, read  
+  a document, search notes, write a note, render a digest, render a quiz — behind a folder allowlist,  
+  an approval prompt for anything that writes, and an append-only audit log. This is the part that  
+  gives the chat hands, and the part the project is about.
+- **The window.** A Tauri application: a Rust backend, a TypeScript frontend rendered in the system  
+  webview, always-on-top, summoned by a global hotkey. It hosts the user's existing chat service in a  
+  separate webview that is deliberately granted no application permissions, and carries a Pomodoro  
+  timer and quick notes so that it is pleasant enough to leave open.
+- **The document pipeline.** A Python sidecar wrapping Microsoft's MarkItDown, which converts PDF,  
+  DOCX, PPTX and XLSX to Markdown so the user can preview, edit and select pages before the prompt is  
+  assembled. It is one of the seven tools, and the smallest of the three layers in what it contributes.
 
 ---
 
@@ -81,32 +85,32 @@ A macOS desktop application in three layers:
 
 ### 2.1 Research question
 
-> Can a free-tier cloud AI chat service be given controlled, auditable access to a student's local
-> files using only local components, and how much of the resulting risk surface can a user-controlled
+> Can a free-tier cloud AI chat service be given controlled, auditable access to a student's local  
+> files using only local components, and how much of the resulting risk surface can a user-controlled  
 > permission layer close?
 
-The question has two halves, and both require evidence. A working demonstration answers the first.
+The question has two halves, and both require evidence. A working demonstration answers the first.  
 Only adversarial testing answers the second.
 
 ### 2.2 Secondary question
 
-> Which failures in such a system are detectable by automated testing, and which survive a passing
+> Which failures in such a system are detectable by automated testing, and which survive a passing  
 > test suite?
 
-This question was not part of the original design. It emerged during the build, when a defect was
-found by reading code that every test had passed. It turned out to be the most productive line of
+This question was not part of the original design. It emerged during the build, when a defect was  
+found by reading code that every test had passed. It turned out to be the most productive line of  
 enquiry in the project, and section 7 is devoted to it.
 
 ### 2.3 Aims
 
-1. Build a desktop application that reuses the AI account a student already has, and gives that AI
+1. Build a desktop application that reuses the AI account a student already has, and gives that AI  
    access to the student's own files under a boundary the student controls.
-2. Evaluate the application on three axes: **function** (does it run), **cost** (what it costs the
+2. Evaluate the application on three axes: **function** (does it run), **cost** (what it costs the  
    student), and **safety** (what it stops).
 3. Report the results honestly, including the ones that contradicted the design.
 
-The aims deliberately exclude "make AI cheaper" and "save tokens". Both were considered and both are
-too narrow: the first is a vendor's problem, and the second turned out to be a single feature rather
+The aims deliberately exclude "make AI cheaper" and "save tokens". Both were considered and both are  
+too narrow: the first is a vendor's problem, and the second turned out to be a single feature rather  
 than a thesis.
 
 ---
@@ -115,55 +119,55 @@ than a thesis.
 
 ### 3.1 Model Context Protocol
 
-MCP is an open standard for exposing tools to an AI client over a transport the client already
-speaks. Its significance for this project is specific: it is what allows a cloud-hosted chat service
-to invoke a process on the user's own machine without a bespoke integration for each vendor. Before
-MCP, "give the model access to my files" meant writing a plugin for one product; with MCP, it means
+MCP is an open standard for exposing tools to an AI client over a transport the client already  
+speaks. Its significance for this project is specific: it is what allows a cloud-hosted chat service  
+to invoke a process on the user's own machine without a bespoke integration for each vendor. Before  
+MCP, "give the model access to my files" meant writing a plugin for one product; with MCP, it means  
 running a server that any compliant client can reach.
 
-Pip implements the server side. It speaks Streamable HTTP on `127.0.0.1:8787`, is stateless, and
+Pip implements the server side. It speaks Streamable HTTP on `127.0.0.1:8787`, is stateless, and  
 requires a bearer token on every request.
 
 ### 3.2 MarkItDown
 
-Microsoft's MarkItDown converts a range of document formats into Markdown while preserving heading
-structure. It was chosen over writing a converter because conversion is a solved problem and the
-interesting problem in this project is the permission boundary. MarkItDown is invoked through
-`convert_local()` only — never `convert()` or `convert_url()` — so the sidecar cannot be steered at
+Microsoft's MarkItDown converts a range of document formats into Markdown while preserving heading  
+structure. It was chosen over writing a converter because conversion is a solved problem and the  
+interesting problem in this project is the permission boundary. MarkItDown is invoked through  
+`convert_local()` only — never `convert()` or `convert_url()` — so the sidecar cannot be steered at  
 a remote URI.
 
 ### 3.3 Tauri
 
-Tauri renders a web frontend inside the operating system's own webview, with a Rust backend. It was
-chosen over Electron for two reasons. The first is binary size. The second matters more: in Tauri,
-calling out to the operating system is an explicit, reviewable command, whereas Electron's Node
-integration makes the same capability ambient. For a project whose subject is a permission boundary,
+Tauri renders a web frontend inside the operating system's own webview, with a Rust backend. It was  
+chosen over Electron for two reasons. The first is binary size. The second matters more: in Tauri,  
+calling out to the operating system is an explicit, reviewable command, whereas Electron's Node  
+integration makes the same capability ambient. For a project whose subject is a permission boundary,  
 an ambient capability is the wrong foundation.
 
 ### 3.4 The gap in existing tools
 
-AI desktop clients already give an assistant access to local files. Two properties make them
-unsuitable for this user. The boundary is set by the vendor rather than the user, and the account is
-normally a paid tier. Neither is unreasonable as a product decision; both exclude the student this
+AI desktop clients already give an assistant access to local files. Two properties make them  
+unsuitable for this user. The boundary is set by the vendor rather than the user, and the account is  
+normally a paid tier. Neither is unreasonable as a product decision; both exclude the student this  
 project is for.
 
 ---
 
 ## 4. Hypotheses
 
-| | Statement | Outcome |
-|---|---|---|
-| **H1 — Capability** | A free-tier cloud chat account can reach a local MCP tool server and execute a tool call, with no API key, no local model and no paid plan. | **Supported** |
-| **H2 — Boundary** | A user-controlled permission layer — folder allowlist, path canonicalisation, approval before writes, token authentication, audit log — closes the majority of the risk surface of exposing local tools to a remote model. | **Partially supported** |
-| **H3 — Efficiency** | Converting a document to Markdown reduces the token cost of a prompt. | **Rejected** — conversion made prompts 12% and 4.5% *larger* on the two documents measured |
-| **H3 revised** | Reading fewer pages reduces token cost, and page-level reading is only possible because the file stays local. | **Supported** |
+|                     | Statement                                                                                                                                                                                                                  | Outcome                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **H1 — Capability** | A free-tier cloud chat account can reach a local MCP tool server and execute a tool call, with no API key, no local model and no paid plan.                                                                                | **Supported**                                                                              |
+| **H2 — Boundary**   | A user-controlled permission layer — folder allowlist, path canonicalisation, approval before writes, token authentication, audit log — closes the majority of the risk surface of exposing local tools to a remote model. | **Partially supported**                                                                    |
+| **H3 — Efficiency** | Converting a document to Markdown reduces the token cost of a prompt.                                                                                                                                                      | **Rejected** — conversion made prompts 12% and 4.5% *larger* on the two documents measured |
+| **H3 revised**      | Reading fewer pages reduces token cost, and page-level reading is only possible because the file stays local.                                                                                                              | **Supported**                                                                              |
 
-H3 was written before the first measurement and is reported as rejected. The rejection is a result,
-not a failure: it is the finding most likely to save another student a week, and it is what produced
+H3 was written before the first measurement and is reported as rejected. The rejection is a result,  
+not a failure: it is the finding most likely to save another student a week, and it is what produced  
 the measurement method used in section 6.3.
 
-The engineering goal was stated separately from H1 so that a working demonstration could not be
-mistaken for evidence: a document must travel from drag-and-drop to an assembled prompt, and a tool
+The engineering goal was stated separately from H1 so that a working demonstration could not be  
+mistaken for evidence: a document must travel from drag-and-drop to an assembled prompt, and a tool  
 call must reach an approved write, in one continuous run.
 
 ---
@@ -172,17 +176,18 @@ call must reach an approved write, in one continuous run.
 
 ### 5.1 Build strategy
 
-The application was built in three tiers over seven days, so that each tier would be a complete
+The application was built in three tiers over seven days, so that each tier would be a complete  
 project if time ran out:
 
 1. **Tier 1** — the window: always-on-top, global hotkey, Pomodoro timer, quick notes.
-2. **Tier 2** — the document pipeline: drag-and-drop, local conversion, editable preview, page
+2. **Tier 2** — the document pipeline: drag-and-drop, local conversion, editable preview, page  
    selection, token counter.
 3. **Tier 3** — the tool layer: seven MCP tools, folder allowlist, approval prompt, audit log.
 
-The riskiest unknown — whether a free account could reach a local server at all — was tested on day
-two, before Tier 2 was begun. A project that fails H1 is a different project, and it was worth
+The riskiest unknown — whether a free account could reach a local server at all — was tested on day  
+two, before Tier 2 was begun. A project that fails H1 is a different project, and it was worth  
 knowing that early rather than late.
+
 
 ### 5.2 Evaluation, axis 1 — Function
 
@@ -271,7 +276,8 @@ conversion inside an OS-level sandbox. Neither is achievable in JavaScript, and 
 for a seven-day build. It is listed rather than hidden because a judge who finds it unlisted learns
 something about the team; a judge who finds it listed learns something about the project.
 
-### 6.3 Cost and efficiency
+
+### 6.3 Cost
 
 | Component | Cost to the student |
 |---|---|
@@ -280,7 +286,15 @@ something about the team; a judge who finds it listed learns something about the
 | Hardware | Rp 0 — an existing laptop |
 | API key | none required |
 
-Token measurement on one six-page worksheet:
+The comparison arm is a paid API at list price, which for a student doing coursework runs to a
+monthly bill that the free account does not. The margin is therefore the whole cost, not a percentage
+of it.
+
+### 6.4 One tool, measured: the document converter
+
+The converter is the only part of Pip that can be measured on its own, so it was. It is worth being
+clear about what it is: a two-hundred-line wrapper around Microsoft's MarkItDown, one of seven tools,
+included because reading a PDF should not require a separate application. It is not the contribution.
 
 | Condition | Tokens | Against pasting |
 |---|---|---|
@@ -292,15 +306,16 @@ Conversion on its own makes the prompt *larger*, by 12% on this document and 4.5
 The structure MarkItDown adds — headings, list markers, table pipes — costs characters, and characters
 are tokens.
 
-What wins is selection. Sending two pages of six costs 686 tokens against 1,844 for pasting the whole
-document, a 63% reduction; against sending the converted whole document it is a 67% reduction.
-Retaining 33% of the pages retained 33% of the cost. Six of the 686 tokens are the `[p.2]` and
-`[p.3]` markers that let the model cite a page rather than "the document".
+What wins is selection, and selection is a property of the architecture rather than of the converter:
+a model holding a path can ask for a page range. Sending two pages of six costs 686 tokens against
+1,844 for pasting the whole document, a 63% reduction; against sending the converted whole document
+it is a 67% reduction. Six of the 686 tokens are the `[p.2]` and `[p.3]` markers that let the model
+cite a page rather than "the document".
 
 A second measurement, on a one-page DOCX activity sheet, produced 552 tokens of raw text against 577
 of Markdown — again larger, and again no saving from conversion alone.
 
-### 6.4 The engineering goal
+### 6.5 The engineering goal
 
 Not achieved as stated. The chain was verified link by link but never in one continuous run before
 this report was written. The distinction is recorded here rather than smoothed over.
@@ -377,21 +392,27 @@ defects in absent behaviour.**
 
 ## 8. Discussion
 
-### 8.1 The saving is not in the conversion
+### 8.1 The converter is a utility, not a contribution
 
-The most useful result is negative, and it is sharper than the hypothesis anticipated. Converting a
-document to Markdown does not merely fail to reduce its token count — it *increases* it, by 12% on the
-six-page PDF and 4.5% on the DOCX. Structure costs characters, and characters are tokens.
+Pip's document tool converts PDF, DOCX, PPTX and XLSX to Markdown. That is Microsoft's MarkItDown
+doing the work; our part is a wrapper that spawns it, validates the path, caps the output and fences
+the result as untrusted data. Roughly two hundred lines. It is in the product because a student
+should not need a separate application to read a PDF, not because conversion is a novel problem.
+
+
+Saying so costs nothing and protects the argument. If the converter were presented as the
+contribution, the first fair question — *why not just use MarkItDown?* — would have no good answer.
+It is one of seven tools, and the other six are where the boundary does its work.
+
+The measurement exists because the tool is measurable in isolation, and it produced a useful negative
+result. Converting a document does not merely fail to reduce its token count — it *increases* it, by
+12% on the six-page PDF and 4.5% on the DOCX. Structure costs characters, and characters are tokens.
 
 What reduces cost is sending less. Two pages instead of six costs 686 tokens against 1,844 for
-pasting the whole document — a 63% reduction, and the reason the third row of the table exists at
-all. And page-level reading is only possible because the file stayed on the machine: a model that
-receives a path can ask for a range; a model that receives an upload has already been given
-everything.
-
-The efficiency claim therefore belongs to the architecture, not to the converter. This matters for
-how the project is described, and it is why section 6.3 reports conversion as a control condition
-rather than a feature — a control that happened to fail in the opposite direction to the prediction.
+pasting the whole document, a 63% reduction. And page-level reading is only possible because the file
+stayed on the machine: a model that receives a path can ask for a range; a model that receives an
+upload has already been given everything. The saving therefore belongs to the architecture, not to
+the converter — which is why section 6.4 reports it as a control condition rather than a feature.
 
 ### 8.2 The boundary is load-bearing
 

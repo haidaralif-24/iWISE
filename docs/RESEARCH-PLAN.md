@@ -37,10 +37,12 @@ are too narrow: the first is a vendor's problem, the second turned out to be a s
 |---|---|---|
 | **H1 — Capability** | A free-tier cloud chat account can reach a local MCP tool server and execute a tool call, with no API key, no local model and no paid plan. | **Supported.** Verified live through a public tunnel on a free account. |
 | **H2 — Boundary** | A user-controlled permission layer — folder allowlist, path canonicalisation, approval before writes, token authentication, audit log — closes the majority of the risk surface of exposing local tools to a remote model. | **Partially supported.** Path traversal and unauthenticated access were blocked; an approval bypass existed and was found by testing, not by review. |
-| **H3 — Efficiency** | Converting a document to Markdown reduces the token cost of a prompt. | **Rejected.** Conversion is token-neutral to slightly worse. Page selection is the lever: 2,067 → 686 tokens on a 6-page PDF. |
+| **H3 — Efficiency** *(a sub-hypothesis about one tool)* | Converting a document to Markdown reduces the token cost of a prompt. | **Rejected.** Conversion makes a prompt 12% *larger*. Page selection is the lever, and it is a property of the architecture rather than the converter: 1,844 → 686 tokens on a 6-page PDF. |
 | **Engineering goal** | A document must travel from drag-and-drop to a sent prompt, and a tool call must reach an approved write, in one continuous run on the team's own laptop. | Chain verified link by link; the single continuous run had not been performed at the time of writing. |
 
-H3 was written first and is reported as rejected. The rejection is a result, not an embarrassment: it
+H1 and H2 concern the project. H3 concerns a single tool and is kept as a sub-hypothesis precisely so
+that a negative result about the converter cannot be mistaken for a negative result about the project.
+It is reported as rejected. The rejection is a result, not an embarrassment: it
 is the finding most likely to save another student a week of work, and it is what produced the
 measurement method now used under the Cost axis.
 
