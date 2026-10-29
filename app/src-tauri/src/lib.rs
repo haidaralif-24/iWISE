@@ -593,6 +593,48 @@ fn list_notes() -> Vec<NoteFile> {
     notes
 }
 
+/// Resolves a note path and refuses anything that is not a Markdown file inside
+/// the notes folder.
+///
+/// The path comes from the frontend, which is this app's own code — but a
+/// boundary that exists only in JavaScript is not a boundary. The same
+/// canonicalise-then-contain rule the tool server applies is repeated here, so
+/// a bug in the UI cannot turn into a read or a write somewhere else.
+fn note_path(raw: &str) -> Result<PathBuf, String> {
+    note_path_in(&notes_dir(), raw)
+}
+
+/// The containment rule, with the root passed in so it can be tested without
+/// mutating the process environment.
+fn note_path_in(root: &Path, raw: &str) -> Result<PathBuf, String> {
+    let root = fs::canonicalize(root)
+        .map_err(|_| "the notes folder does not exist yet".to_string())?;
+
+    let resolved =
+        fs::canonicalize(raw).map_err(|_| "that note is no longer there".to_string())?;
+
+    if !resolved.starts_with(&root) {
+        return Err("that file is outside the notes folder".to_string());
+    }
+    if resolved.extension().map(|ext| ext != "md").unwrap_or(true) {
+        return Err("only Markdown notes open here".to_string());
+    }
+
+    Ok(resolved)
+}
+
+#[tauri::command]
+fn read_note(path: String) -> Result<String, String> {
+    let resolved = note_path(&path)?;
+    fs::read_to_string(&resolved).map_err(|error| format!("could not read the note: {error}"))
+}
+
+#[tauri::command]
+fn save_note(path: String, text: String) -> Result<(), String> {
+    let resolved = note_path(&path)?;
+    fs::write(&resolved, text).map_err(|error| format!("could not save the note: {error}"))
+}
+
 // ---------------------------------------------------------------------------
 // Folder access.
 //
@@ -893,6 +935,8 @@ pub fn run() {
             answer_approval,
             audit_log,
             list_notes,
+            read_note,
+            save_note,
             shared_folders,
             add_shared_folder,
             remove_shared_folder
@@ -1082,8 +1126,31 @@ mod tests {
     }
 
     #[test]
-    fn the_allowlist_file_round_trips() {
-        let dir = scratch("allowlist");
+    fn a_note_path_must_stay_inside_the_notes_folder() {
+        let dir = scratch("notes-path");
+        let notes = dir.join("notes");
+        fs::create_dir_all(&notes).expect("notes dir");
+
+        let good = notes.join("summary.md");
+        fs::write(&good, "# Hello\n").expect("write note");
+
+        let text = dir.join("outside.md");
+        fs::write(&text, "secret").expect("write outside");
+
+        assert!(note_path_in(&notes, good.to_str().unwrap()).is_ok(), "a real note opens");
+
+        let escaped = text.to_str().unwrap();
+        let error = note_path_in(&notes, escaped).expect_err("a sibling file is not in the folder");
+        assert!(error.contains("outside the notes folder"), "got: {error}");
+
+        let plain = notes.join("notes.txt");
+        fs::write(&plain, "not markdown").expect("write txt");
+        let error = note_path_in(&notes, plain.to_str().unwrap()).expect_err("txt is refused");
+        assert!(error.contains("Markdown"), "got: {error}");
+    }
+
+    #[test]
+    fn the_allowlist_file_round_trips() {        let dir = scratch("allowlist");
         let file = dir.join("allowlist.json");
 
         assert!(read_shared_folders_from(&file).is_empty(), "no file yet");

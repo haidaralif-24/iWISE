@@ -616,6 +616,53 @@ button.link.on {
   margin: 12px 0;
 }
 
+/* ---- note reader: rendered above, source below ---- */
+
+.note-reader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  padding-bottom: 2px;
+}
+
+.note-head .notename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  text-align: center;
+}
+
+.note-actions {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.note-split {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-split .md {
+  max-height: 220px;
+  height: 220px;
+}
+
+.note-split .editor {
+  height: 170px;
+  min-height: 170px;
+}
+
 .merged {
   max-height: 170px;
   overflow: auto;
